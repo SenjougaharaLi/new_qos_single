@@ -22,6 +22,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+#include <stdlib.h>
+
 #include "bfd.h"
 #include "bitmap.h"
 #include "bond.h"
@@ -85,6 +87,9 @@ VLOG_DEFINE_THIS_MODULE(ofproto_dpif_xlate);
 /* Maximum number of resubmit actions in a flow translation, whether they are
  * recursive or not. */
 #define MAX_RESUBMITS (MAX_DEPTH * MAX_DEPTH)
+
+void pofbf_copy_bit(const uint8_t *data_ori, uint8_t *data_res, uint16_t offset_b, uint16_t len_b); /* pjq */
+void pofbf_cover_bit(uint8_t *data_ori, const uint8_t *value, uint16_t pos_b, uint16_t len_b); /* pjq */
 
 struct xbridge {
     struct hmap_node hmap_node;   /* Node in global 'xbridges' map. */
@@ -498,6 +503,18 @@ static bool input_vid_is_valid(uint16_t vid, struct xbundle *, bool warn);
 static uint16_t input_vid_to_vlan(const struct xbundle *, uint16_t vid);
 static void output_normal(struct xlate_ctx *, const struct xbundle *,
                           uint16_t vlan);
+
+// pjq
+//static void xlate_output_action(struct xlate_ctx *ctx, ofp_port_t port, uint16_t max_len, bool may_packet_in);
+//static void execute_controller_action(struct xlate_ctx *ctx, int len, enum ofp_packet_in_reason reason, uint16_t controller_id);
+static int xlate_sp(struct xlate_ctx *ctx, uint8_t bitmap, bool may_packet_in);
+static uint64_t get_event_param(struct xlate_ctx *ctx, struct sp_match_x);
+static bool get_event(uint64_t param1, uint64_t param2, enum OPRATOR op);
+static int  execute_sp_actions(struct xlate_ctx *ctx, struct AT_MATCH_ENTRY *at_entry);
+
+//by zzl
+static void xlate_setsrcfield_action(struct xlate_ctx *ctx, ovs_be32 src_ip, uint16_t max_len, bool may_packet_in);
+static void xlate_setdstfield_action(struct xlate_ctx *ctx, ovs_be32 dst_ip, uint16_t max_len, bool may_packet_in);
 
 /* Optional bond recirculation parameter to compose_output_action(). */
 struct xlate_bond_recirc {
@@ -3400,6 +3417,362 @@ xlate_resubmit_resource_check(struct xlate_ctx *ctx)
     return false;
 }
 
+//@pjq
+/*
+ * Description		this function will map the match field bitmap to real match fields
+ *                  and put together those fields as a char*
+ *                  here we could use the packet parsing code
+ 
+struct flow {                                                                bitmap id
+    // L1 
+    struct flow_tnl tunnel;     // Encapsulating tunnel parameters.          1 << 0
+    ovs_be64 metadata;          // OpenFlow Metadata.                        1 << 1
+    uint32_t regs[FLOW_N_REGS]; // Registers.                                1 << 2
+    uint32_t skb_priority;      // Packet priority for QoS.                  1 << 3
+    uint32_t pkt_mark;          // Packet mark.                              1 << 4
+    union flow_in_port in_port; // Input port.                               1 << 5
+
+    // L2 
+    uint8_t dl_src[6];          // Ethernet source address.                  1 << 6
+    uint8_t dl_dst[6];          // Ethernet destination address.             1 << 7
+    ovs_be16 dl_type;           // Ethernet frame type.                      1 << 8
+    ovs_be16 vlan_tci;          // If 802.1Q, TCI | VLAN_CFI; otherwise 0.   1 << 9
+
+    // L3 
+    ovs_be32 mpls_lse;          // MPLS label stack entry.                   1 << 10
+    struct in6_addr ipv6_src;   // IPv6 source address.                      1 << 11
+    struct in6_addr ipv6_dst;   // IPv6 destination address.                 1 << 12
+    struct in6_addr nd_target;  // IPv6 neighbor discovery (ND) target.      1 << 13
+    ovs_be32 ipv6_label;        // IPv6 flow label.                          1 << 14
+    ovs_be32 nw_src;            // IPv4 source address.                      1 << 15
+    ovs_be32 nw_dst;            // IPv4 destination address.                 1 << 16
+    uint8_t nw_frag;            // FLOW_FRAG_* flags.                        1 << 17
+    uint8_t nw_tos;             // IP ToS (including DSCP and ECN).          1 << 18
+    uint8_t nw_ttl;             // IP TTL/Hop Limit.                         1 << 19
+    uint8_t nw_proto;           // IP protocol or low 8 bits of ARP opcode.  1 << 20
+    uint8_t arp_sha[6];         // ARP/ND source hardware address.           1 << 21
+    uint8_t arp_tha[6];         // ARP/ND target hardware address.           1 << 22
+    ovs_be16 tcp_flags;         // TCP flags. With L3 to avoid matching L4.  1 << 23
+    ovs_be16 pad;               // Padding.                                  1 << 24
+    // L4 
+    ovs_be16 tp_src;            // TCP/UDP/SCTP source port.                 1 << 25
+    ovs_be16 tp_dst;            // TCP/UDP/SCTP destination port.            1 << 26
+                                 * Keep last for the BUILD_ASSERT_DECL below 
+};
+ 
+ * Input 			struct xlate_ctx *ctx, uint64_t bitmap
+ * Output			char*, the entire string of match fields
+*/
+static char* parse_match(struct xlate_ctx *ctx, struct sp_match_x st_match)
+{
+//    struct xlate_in *xin = ctx->xin;
+    struct dp_packet *packet = ctx->xin->packet;
+    char* match = xmalloc(st_match.len / 8 + 2);
+    int len = st_match.len;
+//    memset(match, 0, 8);
+    pofbf_copy_bit((uint8_t *)(packet->mbuf.data_off + packet->mbuf.buf_addr),
+                  match, st_match.offset, st_match.len);
+
+    match[len] = '\0';
+    match[len + 1] = '\0';
+    VLOG_INFO("++++++pjq in parse match, field id: %d, offset: %d, len: %d", st_match.field_id,
+              st_match.offset, st_match.len);
+
+    VLOG_INFO("++++++ pjq in parse match, match: %s", match);
+
+    struct ds s;
+    ds_init(&s);
+    ds_put_hex_dump(&s, match, st_match.len / 8, 0, false);
+    VLOG_INFO("++++++ pjq in handle_openflow__,  the ofpbuf msg size: %d, msg: \n%s", st_match.len, ds_cstr(&s));
+    ds_destroy(&s);
+
+    char* data = (uint8_t *)(packet->mbuf.data_off + packet->mbuf.buf_addr);
+    ds_init(&s);
+    ds_put_hex_dump(&s, data, 64, 0, false);
+    VLOG_INFO("++++++ packet size: %d, msg: \n%s", st_match.len, ds_cstr(&s));
+    ds_destroy(&s);
+
+    return match;
+}
+
+static uint64_t get_event_param(struct xlate_ctx *ctx, struct sp_match_x match)
+{
+    return 1;
+}
+
+
+
+// calculate event according to two params and the operator
+static bool get_event(uint64_t param1, uint64_t param2, enum OPRATOR op)
+{
+    bool event;
+    switch(op)
+    {
+        case OPRATOR_NON:
+        {
+            event = true;
+            break;
+        }
+        case OPRATOR_ADD:
+        {
+            event = param1 + param2;
+            break;
+        }
+        case OPRATOR_BITAND:
+        {
+            event = param1 & param2;
+            break;
+        }
+        case OPRATOR_BITOR:
+        {
+            event = param1 | param2;
+            break;
+        }
+        case OPRATOR_ISEQUAL:
+        {
+            event = (param1 == param2);
+            break;
+        }
+        case OPRATOR_GREATER:
+        {
+            event = (param1 > param2);
+            break;
+        }
+        case OPRATOR_LESS:
+        {
+            event = (param1 < param2);
+            break;
+        }
+        case OPRATOR_EQUALGREATER:
+        {
+            event = (param1 >= param2);
+            break;
+        }
+        case OPRATOR_EQUALLESS:
+        {
+            event = (param1 <= param2);
+            break;
+        }
+        default:
+        {
+            printf("**Event operator not found!\n");
+            event = false;
+            break;
+        }
+    }
+    return event;
+}
+
+// execute SP actions 
+static int execute_sp_actions(struct xlate_ctx *ctx, struct AT_MATCH_ENTRY *at_entry)
+{
+    VLOG_INFO("sp_actions\n");
+    VLOG_INFO("act type is : %d\n", at_entry->act.actype);
+    switch(at_entry->act.actype)
+    {
+        case SAT_OUTPUT:
+        {
+            // TODO: set output port to IN_PORT for test
+            //printf("  Action type is Output, port is %ld\n", at_entry->act.acparam);
+            //xlate_output_action(ctx, at_entry->act.acparam, 0, false);
+            VLOG_INFO("  Action type is Output, however in our new design this action shouldn't exist.\n");
+            break;
+        }
+        case SAT_DROP:
+        {
+            printf("  Action type is Drop\n");
+            return 1;
+            // TODO: no idea how to drop a packet, maybe just do nothing
+            break;
+        }
+            //by zzl
+        case SAT_TOOPENFLOW:
+        {
+            //execute_controller_action(ctx, 0, OFPR_ACTION, 0);
+            break;
+        }
+        case ACT_SETSRCFIELD:
+        {
+            //printf("set source ip\n");
+            VLOG_INFO("Action is SETSRCFIELD, original ip is %d, mod ip is %d\n", ctx->xin->flow.nw_src, at_entry->act.acparam);
+            xlate_setsrcfield_action(ctx, at_entry->act.acparam, 0, false);
+            break;
+        }
+        case ACT_SETDSTFIELD:
+        {
+            VLOG_INFO("Action is SETDSTFIELD, original ip is %d, mod ip is %d\n", ctx->xin->flow.nw_dst, at_entry->act.acparam);
+            xlate_setdstfield_action(ctx, at_entry->act.acparam, 0, false);
+            break;
+        }
+        default:
+        {
+            printf("  SP action type not found!\n");
+            break;
+        }
+    }
+    return 0;
+}
+
+/*
+ * Description		this function processes packets send in by the instruction GOTO_FP
+ * 					this function will:
+ *                  (1) fetch app indexes from the bitmap, and find app nodes from g_apps
+ * 					(2) get bitmap of ST, fetch match fields from the packet and calculate its Hash value
+ *                  (3) look up the ST with the Hash, and get current_state
+ *                  (4) look up the STT with current_state and event-relavant params, and get next_state
+ *                  (5) get bitmap of AT, fetch match fields from the packet and calculate its Hash value
+ *                  (6) look up the AT with the Hash and next_state, and get actions
+ *                  (7) [temp] execute the actions and update the ST
+ * Input 			uint8_t bitmap
+ * Output			whether the OF pipeline should stop because the action on this packet is drop, 1 for stop, 0 for continue
+*/
+static int xlate_sp(struct xlate_ctx *ctx, uint8_t bitmap, bool may_packet_in)
+{
+    VLOG_INFO("--Inside function xlate_sp!\n");
+    // fetch app indexes from the bitmap, and find app nodes from g_apps
+    int i = 0; //inner use
+    struct CONTROLLAPP* app = NULL;
+    bool app_found = false;
+    // look up the bitmap (it represents the appid) in the appslist
+    LIST_FOR_EACH(app , node, &g_apps.appslist)
+    {
+        VLOG_INFO("appid : %d \n", app->appid);
+        //Search the g_appslist with appid "i"
+        if( app->appid == bitmap)
+        {
+            app_found = true;
+            break;
+        }
+    }
+    if(!app_found)
+    {
+        VLOG_INFO("**No relavant id APP found!\n");
+        return;
+        //break;
+    }
+
+    struct STATUS_TABLE* st = app -> pst;
+    struct STATUS_TRANZ_TABLE* stt = app -> pstt;
+    struct ACTION_TABLE* at = app -> pat;
+
+    // fetch and parse st match bitmap
+    struct sp_match_x st_match = st -> st_match;
+//    uint64_t st_match_bitmap = st -> match_bitmap;
+//    char* st_match_string = parse_match(ctx, st_match_bitmap);
+    char* st_match_string = parse_match(ctx, st_match);
+//    VLOG_INFO("+++++ pjq match len:%ld", strlen(st_match_string));
+    if(!st_match_string)
+    {
+        printf("**Match field NULL!\n");
+        return;
+    }
+
+    // look up the ST with the Hash, and get current_state
+    uint32_t current_state;
+    struct ST_MATCH_ENTRY *st_entry;
+    bool st_entry_found = false;
+    HMAP_FOR_EACH_WITH_HASH(st_entry, node, hash_string(st_match_string, 0), &(st->st_entrys))
+    {
+        st_entry_found = true;
+        printf("++ST entry found!\n");
+        current_state = st_entry->last_status;
+        printf("  Current_state is: %d\n", current_state);
+        VLOG_INFO("+++++ pjq data: %s", st_entry->data);
+        break;
+    }
+    if(!st_entry_found)
+    {
+        printf("**ST entry not found!\n");
+        return;
+    }
+
+    uint32_t next_state = current_state;
+
+    // look up the STT with current_state and event-relavant params, and get next_state
+    uint64_t param_left  = 0;
+    uint64_t param_right = 0;
+    bool event = false;
+    bool event_exist = false;
+    bool stt_entry_found = false;
+
+    struct STT_MATCH_ENTRY* stt_entry = NULL;
+    LIST_FOR_EACH(stt_entry , node, &(stt->stt_entrys))
+    {
+//        if(stt_entry->param_left_type == SFAPARAM_CONST)
+//        {param_left = stt_entry->param_left;}
+//        else
+//        {param_left  = get_event_param(ctx, stt_entry->param_left_type);}
+//        if(stt_entry->param_right_type == SFAPARAM_CONST)
+//        {param_right = stt_entry->param_right;}
+//        else
+//        {param_right = get_event_param(ctx, stt_entry->param_right_type);}
+
+        param_left = get_event_param(ctx, stt_entry->param_left_match);
+        param_right = get_event_param(ctx, stt_entry->param_right_match);
+
+        //printf("right param is %lld, ", stt_entry->param_right);
+        //param_right = stt_entry->param_right;
+        printf("Param left = %lld, Param right = %lld\n", param_left, param_right);
+
+        event = get_event(param_left, param_right, stt_entry->oprator);
+        if(event)
+        {
+            printf("  Event exists!\n");
+            event_exist = true;
+            if(current_state == stt_entry->last_status)
+            {
+                stt_entry_found = true;
+                next_state = stt_entry->cur_status;
+                printf("++STT entry found!\n Param left = %lld, Param right = %lld\n", param_left, param_right);
+                break;
+            }
+        }
+    }
+    if(!stt_entry_found && event_exist)
+    {
+        printf("**STT entry not found, next state is set to 0!\n");
+        next_state = 0;
+    }
+
+    printf("  Next_state is: %d\n", next_state);
+
+    // fetch and parse bitmap of AT
+//    uint64_t at_match_bitmap = at->bitmap;
+    char* at_match_string = parse_match(ctx, at->at_match);
+    if(!st_match_string)
+    {
+        printf("**Match field NULL!\n");
+        return;
+    }
+
+    int should_drop;
+    // look up the AT with the Hash, get actions, and execute them
+    struct AT_MATCH_ENTRY *at_entry;
+    HMAP_FOR_EACH_WITH_HASH(at_entry, node, hash_string(at_match_string, 0), &(at->at_entrys))
+    {
+//        if(at_entry->last_status == next_state)
+//        {
+//            printf("++AT entry found!\n");
+//            should_drop = execute_sp_actions(ctx, at_entry);
+//            break;
+//        }
+        printf("++AT entry found!\n");
+        should_drop = execute_sp_actions(ctx, at_entry);
+        break;
+    }
+
+    // update the state
+    if(next_state != 0)
+    {
+        printf("  State updating...\n\n");
+        st_entry->last_status = next_state;
+    }
+
+    if(should_drop == 1) return 1;
+
+    return 0;
+}
+
 static void
 xlate_table_action(struct xlate_ctx *ctx, ofp_port_t in_port, uint8_t table_id,
                    bool may_packet_in, bool honor_table_miss)
@@ -4165,8 +4538,8 @@ xlate_output_action(struct xlate_ctx *ctx,
 
     switch (port) {         //sqy notes: port = 3 go to default
     case OFPP_IN_PORT:
-    	/*VLOG_INFO("++++++tsf xlate_output_action: OFPP_IN_PORT, inport=%"PRIu32,
-    			ctx->xin->flow.in_port.ofp_port);*/
+    	VLOG_INFO("++++++tsf xlate_output_action: OFPP_IN_PORT, inport=%"PRIu32,
+    			ctx->xin->flow.in_port.ofp_port);
         compose_output_action(ctx, ctx->xin->flow.in_port.ofp_port, NULL);
         break;
     case OFPP_TABLE:
@@ -5025,6 +5398,28 @@ pof_do_xlate_actions(const struct ofpact *ofpacts, size_t ofpacts_len,
     struct pof_flow *flow = &ctx->xin->flow;
     const struct ofpact *a;
 
+    struct dp_packet *packet;
+    char * header;
+    uint8_t eport;
+    uint8_t sgTTL;
+    uint8_t Length;
+    uint8_t TTL;
+
+//    packet = dp_packet_clone(ctx->xin->packet);
+
+
+
+//    header = ofp_packet_to_string(dp_packet_data(packet),
+//                                      dp_packet_size(packet));
+//    header = dp_packet_data(packet);
+//    header = dp_packet_pof_resize_field(packet, 1);
+
+
+//    VLOG_INFO("++++zqt pof_do_xlate_actions, header:%s", header);
+//    memcpy(&eport, header + 1, 4);
+//    VLOG_INFO("++++zqt pof_do_xlate_actions, port:%u", eport);
+
+
     /* tsf: memset pof_flow.flag[8], try to support multiple action.
      *      the `flow->flag` indicates that which type of action will be stored. And
      *      I use `action_num` as action_field array index, so that action_field can
@@ -5054,6 +5449,7 @@ pof_do_xlate_actions(const struct ofpact *ofpacts, size_t ofpacts_len,
     const struct ofpact_metadata *metadata;
     const struct ofpact_set_field *set_field;
     const struct ofpact_add_field *add_field;
+    const struct ofpact_output *output;
     const struct ofpact_drop *drop;
     const struct ofpact_modify_field *modify_field;
     const struct ofpact_delete_field *delete_field;
@@ -5076,12 +5472,53 @@ pof_do_xlate_actions(const struct ofpact *ofpacts, size_t ofpacts_len,
 
         switch (a->type) {
         case OFPACT_OUTPUT:
-        	/*VLOG_INFO("+++++++tsf pof_do_xlate_actions OFPACT_OUTPUT->type:%d, len:%d", a->type, a->len);*/
-        	flow->telemetry.out_port = ofpact_get_OUTPUT(a)->port;
-        	flow->telemetry.fwd_acts |= fwd_acts;
-        	/*VLOG_INFO("pof_do_xlate_actions, fwd_acts: %08x\n", fwd_acts);*/
-            xlate_output_action(ctx, ofpact_get_OUTPUT(a)->port,
-                                ofpact_get_OUTPUT(a)->max_len, true);
+            output = ofpact_get_OUTPUT(a);
+//            VLOG_INFO("++++zqt pof_do_xlate_actions, header:%s", header);
+            if((output->metadata_offset) != 0){
+                packet = ctx->xin->packet;
+                header = dp_packet_data(packet);
+                memcpy(&sgTTL, header + 14, 1);
+                memcpy(&Length, header + 15, 1);
+//                VLOG_INFO("############ zqt pof_do_xlate_actions, sgTTL:%u", sgTTL);
+                memcpy(&TTL, header + 17 + Length * 4, 1);
+//                VLOG_INFO("############ zqt pof_do_xlate_actions, pTTL:%u", pTTL);
+//                memcpy(&eport, header + 17 + Length * 4 + TTL , 1);
+//                memcpy(&eport, header + 16, 1);
+                memcpy(&eport, header + (output->metadata_offset), 1);
+//                VLOG_INFO("############ zqt pof_do_xlate_actions, offset:%u", output->metadata_offset);
+//                VLOG_INFO("############ zqt pof_do_xlate_actions, port:%u", eport);
+                flow->telemetry.out_port = eport;
+                flow->telemetry.fwd_acts |= fwd_acts;
+                xlate_output_action(ctx, eport,
+                                    output->max_len, true);
+                break;
+            }
+            else {
+                VLOG_INFO("+++++ pjq xlate output action");
+        	    flow->telemetry.out_port = output->port;
+                flow->telemetry.fwd_acts |= fwd_acts;
+                xlate_output_action(ctx, output->port,
+                                    output->max_len, true);
+                break;
+            }
+//            memcpy(&eport, header + (output->metadata_offset), 1);
+//            VLOG_INFO("############ zqt pof_do_xlate_actions, offset:%u", output->metadata_offset);
+//            memcpy(&eport, header + 27, 2);
+//            VLOG_INFO("############ zqt pof_do_xlate_actions, port:%u", eport);
+
+
+
+
+
+//            VLOG_INFO("############ zqt pof_do_xlate_actions, max_len:%u", output->max_len);
+                /*VLOG_INFO("+++++++tsf pof_do_xlate_actions OFPACT_OUTPUT->type:%d, len:%d", a->type, a->len);*/
+//        	flow->telemetry.out_port = ofpact_get_OUTPUT(a)->port;
+//            flow->telemetry.out_port = eport;
+//            flow->telemetry.fwd_acts |= fwd_acts;
+//            xlate_output_action(ctx, eport,
+//                                output->max_len, true);
+//            xlate_output_action(ctx, ofpact_get_OUTPUT(a)->port,
+//                                ofpact_get_OUTPUT(a)->max_len, true);
             break;
 
         case OFPACT_DROP:    /* tsf: add OFPACT_DROP */
@@ -5208,6 +5645,22 @@ pof_do_xlate_actions(const struct ofpact *ofpacts, size_t ofpacts_len,
         case OFPACT_METER:
             /* Not implemented yet. */
             break;
+
+        case OFPACT_GOTO_SP: {
+            // pjq
+            VLOG_INFO("-----sfa get gotofp instruction-----\n");
+            struct ofpact_goto_sp *ogs = ofpact_get_GOTO_SP(a);
+
+            VLOG_INFO("++++++pjq before xlate_sp ofpact_goto_sp, type: %d, raw: %d, len: %d, bitmap: %d",
+                      ogs->ofpact.type, ogs->ofpact.raw, ntohs(ogs->ofpact.len), ogs->bitmap);
+
+            //ovs_assert(ctx->table_id < ogt->table_id);
+            //xlate_table_action(ctx, ctx->xin->flow.in_port.ofp_port,
+            //                   ogt->table_id, true);
+            int should_stop = xlate_sp(ctx, ogs->bitmap, true);
+//            if(should_stop == 1) ctx->exit = true;
+            break;
+        }
 
         case OFPACT_GOTO_TABLE: {
             struct ofpact_goto_table *ogt = ofpact_get_GOTO_TABLE(a);
@@ -6360,4 +6813,36 @@ xlate_mac_learning_update(const struct ofproto_dpif *ofproto,
     }
 
     update_learning_table(xbridge, xbundle, dl_src, vlan, is_grat_arp);
+}
+
+
+//by zzl
+static void xlate_setsrcfield_action(struct xlate_ctx *ctx, ovs_be32 src_ip, uint16_t max_len, bool may_packet_in)
+{
+    ctx->xin->flow.nw_src = src_ip;
+    //st_entry->last_status = 1;
+//	xlate_output_action(ctx, 2, 0, false);
+}
+static void xlate_setdstfield_action(struct xlate_ctx *ctx, ovs_be32 dst_ip, uint16_t max_len, bool may_packet_in)
+{
+    ctx->xin->flow.nw_dst = dst_ip;
+
+    struct dp_packet *packet = ctx->xin->packet;
+    char* match = xmalloc(6);
+    match[0] = '1';
+    match[1] = '2';
+    match[2] = '3';
+    match[3] = '4';
+//    memset(match, 0, 8);
+    pofbf_cover_bit((uint8_t *)(packet->mbuf.data_off + packet->mbuf.buf_addr),
+                   match, 240, 32);
+
+    struct ds s;
+    char* data = (uint8_t *)(packet->mbuf.data_off + packet->mbuf.buf_addr);
+    ds_init(&s);
+    ds_put_hex_dump(&s, data, 64, 0, false);
+    VLOG_INFO("++++++ packet size: %d, msg: \n%s", 64, ds_cstr(&s));
+    ds_destroy(&s);
+    //st_entry->last_status = 2;
+//	xlate_output_action(ctx, 1, 0, false);
 }

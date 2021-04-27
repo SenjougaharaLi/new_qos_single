@@ -125,6 +125,8 @@
     OFPACT(CLEAR_ACTIONS,   ofpact_null,        ofpact, "clear_actions") \
     OFPACT(WRITE_ACTIONS,   ofpact_nest,        actions, "write_actions") \
     OFPACT(WRITE_METADATA,  ofpact_metadata,    ofpact, "write_metadata") \
+    /* pjq */                                                      \
+    OFPACT(GOTO_SP,         ofpact_goto_sp,     ofpact, "goto_sp") \
     OFPACT(GOTO_TABLE,      ofpact_goto_table,  ofpact, "goto_table")
 
 /* enum ofpact_type, with a member OFPACT_<ENUM> for each action. */
@@ -266,6 +268,8 @@ struct ofpact_output {
     struct ofpact ofpact;
     ofp_port_t port;            /* Output port. */
     uint16_t max_len;           /* Max send len, for port OFPP_CONTROLLER. */
+    uint16_t metadata_offset;
+
 };
 
 /* tsf: OFPACT_DROP.
@@ -316,6 +320,12 @@ struct ofpact_delete_field {
 		uint32_t value;
 		struct pof_match field;
 	} tag_len;
+};
+
+/* pjq */
+struct ofpact_goto_sp {
+    struct ofpact ofpact;
+    uint8_t bitmap;
 };
 
 /* OFPACT_CONTROLLER.
@@ -1178,6 +1188,9 @@ struct ofpact_set_field *ofpact_put_reg_load2(struct ofpbuf *ofpacts,
                 ofp11_instruction_write_metadata, false,    \
                 "write_metadata")                           \
                                                             \
+    DEFINE_INST(OFPIT11_GOTO_SP,                            \
+                ofp11_instruction_goto_sp,         true,   \
+                "goto_sp")                                  \
     DEFINE_INST(OFPIT11_GOTO_TABLE,                         \
                 ofp11_instruction_goto_table,     true,    \
                 "goto_table")

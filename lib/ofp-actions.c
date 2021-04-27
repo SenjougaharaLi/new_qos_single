@@ -452,6 +452,7 @@ ofpact_next_flattened(const struct ofpact *ofpact)
     case OFPACT_CLEAR_ACTIONS:
     case OFPACT_WRITE_METADATA:
     case OFPACT_GOTO_TABLE:
+    case OFPACT_GOTO_SP:
     case OFPACT_NAT:
         return ofpact_next(ofpact);
 
@@ -497,6 +498,7 @@ struct ofp10_action_output {
     ovs_be16 type;                  /* OFPAT10_OUTPUT. */
     ovs_be16 len;                   /* Length is 8. */
     ovs_be16 port;                  /* Output port. */
+//    ovs_be16 offset;                  /* Output port. */
     ovs_be16 max_len;               /* Max length to send to controller. */
 };
 OFP_ASSERT(sizeof(struct ofp10_action_output) == 8);
@@ -555,9 +557,10 @@ decode_OFPAT_RAW11_OUTPUT(const struct ofp11_action_output *oao,
 
     error = ofputil_port_from_ofp11(oao->outputPortId, &output->port);
 
+    output->metadata_offset = ntohs(oao->metadata_offset);
     output->max_len = output->port == OFPP_CONTROLLER ? UINT16_MAX : 0;
     VLOG_INFO("+++++++++++tsf decode_OFPAT_RAW11_OUTPUT:port=%"PRIu16", max_len=%"PRIu16,
-    		output->port, output->max_len);
+    		output->port, output->max_len, output->metadata_offset);
 
     if (error) {
         return error;
@@ -581,6 +584,7 @@ encode_OUTPUT(const struct ofpact_output *output,
 
         oao = put_OFPAT11_OUTPUT(out);
         oao->outputPortId = ofputil_port_to_ofp11(output->port);
+//        oao->metadata_len = ofputil_port_to_ofp11(output->metadata_offset);
         /*oao->max_len = htons(output->max_len);*/
     }
 }
@@ -589,6 +593,7 @@ static char * OVS_WARN_UNUSED_RESULT
 parse_truncate_subfield(struct ofpact_output_trunc *output_trunc,
                         const char *arg_)
 {
+    VLOG_INFO("++++++zqt format_OUTPUT: start");
     char *key, *value;
     char *arg = CONST_CAST(char *, arg_);
 
@@ -617,12 +622,14 @@ parse_truncate_subfield(struct ofpact_output_trunc *output_trunc,
         }
     }
     return NULL;
+    VLOG_INFO("++++++zqt format_OUTPUT: end");
 }
 
 static char * OVS_WARN_UNUSED_RESULT
 parse_OUTPUT(const char *arg, struct ofpbuf *ofpacts,
              enum ofputil_protocol *usable_protocols OVS_UNUSED)
 {
+    VLOG_INFO("++++++zqt parse_OUTPUT: start");
     if (strchr(arg, '[')) {
         struct ofpact_output_reg *output_reg;
 
@@ -644,6 +651,8 @@ parse_OUTPUT(const char *arg, struct ofpbuf *ofpacts,
         output->max_len = output->port == OFPP_CONTROLLER ? UINT16_MAX : 0;
         return NULL;
     }
+
+    VLOG_INFO("++++++zqt parse_OUTPUT: end");
 }
 
 static void
@@ -6618,6 +6627,32 @@ decode_NXAST_RAW_WRITE_METADATA(const struct nx_action_write_metadata *nawm,
     return 0;
 }
 
+// pjq
+static void
+encode_GOTO_SP(const struct ofpact_goto_sp *ogs,
+               enum ofp_version ofp_version, struct ofpbuf *out)
+{
+    struct ofp11_instruction_goto_sp *oigs;
+    oigs = instruction_put_OFPIT11_GOTO_SP(out);
+    oigs->bitmap = ogs->bitmap;
+    memset(oigs->pad, 0, sizeof oigs->pad);
+}
+
+static void format_GOTO_SP(const struct ofpact_goto_sp *ogs, struct ds * s)
+{
+    ds_put_format(s, "%goto_sp:%s%#"PRIx64,
+                  colors.param, colors.end, ntohll(ogs->bitmap));
+}
+
+static char * OVS_WARN_UNUSED_RESULT
+parse_GOTO_SP(char *arg, struct ofpbuf *ofpacts,
+              enum ofputil_protocol *usable_protocols OVS_UNUSED)
+{
+    struct ofpact_goto_sp *ogt = ofpact_put_GOTO_SP(ofpacts);
+    return NULL;
+}
+
+
 static void
 encode_WRITE_METADATA(const struct ofpact_metadata *metadata,
                       enum ofp_version ofp_version, struct ofpbuf *out)
@@ -6994,6 +7029,7 @@ ofpact_is_set_or_move_action(const struct ofpact *a)
     case OFPACT_STRIP_VLAN:
     case OFPACT_WRITE_ACTIONS:
     case OFPACT_WRITE_METADATA:
+    case OFPACT_GOTO_SP:  /* pjq */
     case OFPACT_DEBUG_RECIRC:
         return false;
     default:
@@ -7071,6 +7107,7 @@ ofpact_is_allowed_in_actions_set(const struct ofpact *a)
     case OFPACT_METER:
     case OFPACT_WRITE_ACTIONS:
     case OFPACT_WRITE_METADATA:
+    case OFPACT_GOTO_SP:   /* pjq */
         return false;
     default:
         OVS_NOT_REACHED();
@@ -7415,7 +7452,20 @@ decode_openflow11_instruction(const struct ofp11_instruction *inst,
                               enum ovs_instruction_type *type)
 {
     uint16_t len = 304;
-VLOG_INFO("+++++++++++sqy decode_openflow11_instruction:start");
+    VLOG_INFO("+++++++++++sqy decode_openflow11_instruction:start");
+    VLOG_INFO("+++++++++++pjq inst->type: %d, inst->len: %d,", ntohs(inst->type), ntohs(inst->len));
+
+    struct ds s;
+    ds_init(&s);
+    char* test_ins = (char *)inst;
+//    int len = (152 > ntohs(oh->length)) ? ntohs(oh->length) : 152;
+    ds_put_hex_dump(&s, test_ins, 336, 0, false);
+
+    VLOG_INFO("++++++ pjq in decode_openflow11_instruction,  the  msg size: %d, msg: \n%s", 304, ds_cstr(&s));
+    ds_destroy(&s);
+
+//    VLOG_INFO("++++++ pjq constant_htons(goto_sp):%d", CONSTANT_HTONS(OFPIT11_GOTO_SP));
+
     switch (inst->type) {
     case CONSTANT_HTONS(OFPIT11_EXPERIMENTER):
         return OFPERR_OFPBIC_BAD_EXPERIMENTER;
@@ -7425,15 +7475,19 @@ VLOG_INFO("+++++++++++sqy decode_openflow11_instruction:start");
             if (EXTENSIBLE                              \
                 ? len >= sizeof(struct STRUCT)          \
                 : len == sizeof(struct STRUCT)) {       \
+                VLOG_INFO("+++++ pjq len: %d, sizeof struct:%d", len, sizeof(struct STRUCT)); \
                 *type = OVSINST_##ENUM;                 \
                 return 0;                               \
             } else {                                    \
+                VLOG_INFO("+++pjq bad len");                    \
+                VLOG_INFO("+++++ pjq len: %d, sizeof struct:%d", len, sizeof(struct STRUCT)); \
                 return OFPERR_OFPBIC_BAD_LEN;           \
             }
 OVS_INSTRUCTIONS
 #undef DEFINE_INST
 
     default:
+        VLOG_INFO("++++++pjq ofperr ofpbic unknow inst");
         return OFPERR_OFPBIC_UNKNOWN_INST;
     }
 }
@@ -7480,12 +7534,13 @@ decode_openflow11_instructions(const struct ofp11_instruction insts[],
     size_t left;
     VLOG_INFO("+++++++++++sqy decode_openflow11_instructions: before decode_openflow11_instruction, n_insts: %d", n_insts);
     memset(out, 0, N_OVS_INSTRUCTIONS * sizeof *out);
+    int i = 0;
     INSTRUCTION_FOR_EACH (inst, left, insts, n_insts) {
         enum ovs_instruction_type type;
         enum ofperr error;
 
         error = decode_openflow11_instruction(inst, &type);
-        VLOG_INFO("+++++++++++sqy decode_openflow11_instructions: after decode_openflow11_instruction");
+        VLOG_INFO("+++++++++++sqy decode_openflow11_instructions: after decode_openflow11_instruction, ins num:%d", i);
         if (error) {
             return error;
         }
@@ -7494,6 +7549,7 @@ decode_openflow11_instructions(const struct ofp11_instruction insts[],
             return OFPERR_OFPBIC_DUP_INST;
         }
         out[type] = inst;
+        i++;
     }
 
     if (left) {
@@ -7548,6 +7604,8 @@ ofpacts_pull_openflow_instructions(struct ofpbuf *openflow,
     const struct ofp11_instruction *insts[N_OVS_INSTRUCTIONS];
     enum ofperr error;
 
+    VLOG_INFO("+++++++++pjq in ofpacts_pull_openflow_instructions");
+
     ofpbuf_clear(ofpacts);
     if (version == OFP10_VERSION) {
         VLOG_INFO("+++++++++++sqy ofpacts_pull_openflow_instructions: befoore ofpacts_pull_openflow_actions__  10");
@@ -7566,7 +7624,18 @@ ofpacts_pull_openflow_instructions(struct ofpbuf *openflow,
     }
 
     instructions = ofpbuf_try_pull(openflow, instructions_len);
-    VLOG_INFO("++++++tsf ofpacts_pull_openflow_instructions: ofpbuf_try_pull: instruction_len: %d", instructions_len);
+    VLOG_INFO("++++++pjq ofpacts_pull_openflow_instructions: ofpbuf_try_pull: instruction_len: %d", instructions_len);
+    VLOG_INFO("++++++pjq instructions->type: %d, len: %d", ntohs(instructions->type), ntohs(instructions->len));
+
+    struct ds s;
+    ds_init(&s);
+    char* test_ins = (char *)instructions;
+//    int len = (152 > ntohs(oh->length)) ? ntohs(oh->length) : 152;
+    ds_put_hex_dump(&s, test_ins, 608, 0, false);
+
+    VLOG_INFO("++++++ pjq in decode_openflow11_instruction,  the  msg size: %d, msg: \n%s", 608, ds_cstr(&s));
+    ds_destroy(&s);
+
     if (instructions == NULL) {
         VLOG_WARN_RL(&rl, "OpenFlow message instructions length %u exceeds "
                      "remaining message length (%"PRIu32")",
@@ -7581,6 +7650,7 @@ ofpacts_pull_openflow_instructions(struct ofpbuf *openflow,
 
     if (error) {
         VLOG_INFO("+++++++++++sqy ofpacts_pull_openflow_instructions: error decode_openflow11_instructions");
+        VLOG_INFO("+++++++++++pjq error: %d", error);
         goto exit;
     }
 
@@ -7654,6 +7724,21 @@ ofpacts_pull_openflow_instructions(struct ofpbuf *openflow,
         om = ofpact_put_WRITE_METADATA(ofpacts);
         om->metadata = oiwm->metadata;
         om->mask = oiwm->metadata_mask;
+    }
+    // pjq
+    if (insts[OVSINST_OFPIT11_GOTO_SP]) {
+        VLOG_INFO("++++++++++pjq ofpacts_pull_openflow_instructions: before OVSINST_OFPIT11_GOTO_SP");
+        const struct ofp11_instruction_goto_sp *oigs;
+        struct ofpact_goto_sp *ogs;
+        oigs = ALIGNED_CAST(const struct ofp11_instruction_goto_sp *,
+                           insts[OVSINST_OFPIT11_GOTO_SP]);
+        VLOG_INFO("+++++++pjq ofp11_instruction_goto_sp type: %d, len: %d, bitmap: %d", ntohs(oigs->type), ntohs(oigs->len), oigs->bitmap);
+        ogs = ofpact_put_GOTO_SP(ofpacts);
+        ogs->bitmap = oigs->bitmap;
+        VLOG_INFO("++++++pjq ofpact_goto_sp, type: %d, raw: %d, len: %d, bitmap: %d", ogs->ofpact.type, ogs->ofpact.raw, ntohs(ogs->ofpact.len), ogs->bitmap);
+        VLOG_INFO("++++++++pjq oigs->bitmap: %d", oigs->bitmap);
+        VLOG_INFO("+++++++pjq value of ofpact_goto_sp in enum: %d", OFPACT_GOTO_SP);
+        VLOG_INFO("+++++++pjq value of set filed in enum: %d", OFPACT_SET_FIELD);
     }
     if (insts[OVSINST_OFPIT11_GOTO_TABLE]) {
         VLOG_INFO("+++++++++++sqy ofpacts_pull_openflow_instructions: befoore OVSINST_OFPIT11_GOTO_TABLE");
@@ -8014,6 +8099,14 @@ ofpact_check__(enum ofputil_protocol *usable_protocols, struct ofpact *a,
         if ((table_id != 255 && goto_table <= table_id)
             || (n_tables != 255 && goto_table >= n_tables)) {
             return OFPERR_OFPBIC_BAD_TABLE_ID;
+        }
+        return 0;
+    }
+
+    case OFPACT_GOTO_SP: { /* pjq */
+        uint8_t  bitmap = ofpact_get_GOTO_SP(a)->bitmap;
+        if (bitmap == 0) {
+
         }
         return 0;
     }
@@ -8533,6 +8626,7 @@ ofpact_outputs_to_port(const struct ofpact *ofpact, ofp_port_t port)
     case OFPACT_CLEAR_ACTIONS:
     case OFPACT_WRITE_ACTIONS:
     case OFPACT_GOTO_TABLE:
+    case OFPACT_GOTO_SP: /* pjq */
     case OFPACT_METER:
     case OFPACT_GROUP:    /* tsf */
     case OFPACT_DEBUG_RECIRC:

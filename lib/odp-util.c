@@ -5477,6 +5477,9 @@ get_pof_set_field_key(const struct pof_flow *flow, struct ovs_key_set_field *eth
     eth->field_id = ntohs(flow->field_id[index]);
     eth->len = ntohs(flow->len[index]);
     eth->offset = ntohs(flow->offset[index]);
+    eth->device_id = flow->telemetry.device_id;
+    eth->in_port = flow->telemetry.in_port;
+    eth->out_port = flow->telemetry.out_port;
 
     for(int i=0; i < eth->len; i++){
         eth->value[i] = flow->value[index][i];
@@ -5490,6 +5493,9 @@ get_pof_set_field_mask(const struct pof_flow *flow, struct ovs_key_set_field *et
     eth->field_id = ntohs(flow->field_id[index]);
     eth->len = ntohs(flow->len[index]);
     eth->offset = ntohs(flow->offset[index]);
+    eth->device_id = flow->telemetry.device_id;
+    eth->in_port = flow->telemetry.in_port;
+    eth->out_port = flow->telemetry.out_port;
 
     for(int i=0; i < eth->len; i++){
         eth->value[i] = flow->mask[index][i];
@@ -5503,6 +5509,10 @@ put_pof_set_field_key(const struct ovs_key_set_field *eth, struct pof_flow *flow
     flow->field_id[index] = htons(eth->field_id);
     flow->len[index] = htons(eth->len);
     flow->offset[index] = htons(eth->offset);
+    flow->telemetry.device_id = eth->device_id;
+    flow->telemetry.in_port = eth->in_port;
+    flow->telemetry.out_port = eth->out_port;
+
     for(int i=0; i < eth->len; i++){
         flow->value[index][i] = eth->value[i];
         /*VLOG_INFO("++++++tsf put_set_field_key:flow->value[0][%d]=%d",i, flow->value[0][i]);*/

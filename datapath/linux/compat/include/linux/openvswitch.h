@@ -331,6 +331,10 @@ struct ovs_key_set_field {
 	uint16_t offset;
 	uint16_t len;
 	uint8_t value[16];
+    uint64_t device_id;  /* value[0]=0x01 */
+    uint32_t in_port;     /* value[0]=0x02 */
+    uint32_t out_port;    /* value[0]=0x04 */
+
 };
 
 struct ovs_key_modify_field {

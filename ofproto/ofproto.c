@@ -63,6 +63,8 @@
 #include "unaligned.h"
 #include "unixctl.h"
 #include "util.h"
+#include "sfa.h"  /* pjq */
+
 
 VLOG_DEFINE_THIS_MODULE(ofproto);
 
@@ -78,6 +80,7 @@ COVERAGE_DEFINE(ofproto_update_port);
 const enum mf_field_id default_prefix_fields[2] =
     { MFF_IPV4_DST, MFF_IPV4_SRC };
 
+//int sfa_handle_pkt(struct ofconn *ofconn, const struct ofpbuf *msg); //pjq
 /* oftable. */
 static void oftable_init(struct oftable *);
 static void oftable_destroy(struct oftable *);
@@ -4873,22 +4876,23 @@ add_pof_flow_init(struct ofproto *ofproto, struct ofproto_flow_mod *ofm,
         && !(fm->flags & OFPUTIL_FF_NO_READONLY)) {
         return OFPERR_OFPBRC_EPERM;
     }
-    //VLOG_INFO("+++++++++++sqy add_pof_flow_init:  before pof_cls_rule_init ");
+    VLOG_INFO("+++++++++++sqy add_pof_flow_init:  before pof_cls_rule_init ");
     if (!ofm->temp_rule) {
         pof_cls_rule_init(&cr, &fm->match, fm->priority);
 
         /* Allocate new rule.  Destroys 'cr'. */
-        //VLOG_INFO("+++++++++++sqy add_pof_flow_init:  before ofproto_rule_create ");
+        VLOG_INFO("+++++++++++sqy add_pof_flow_init:  before ofproto_rule_create ");
         error = ofproto_rule_create(ofproto, &cr, table - ofproto->tables,
                                     fm->new_cookie, fm->idle_timeout,
                                     fm->hard_timeout, fm->flags,
                                     fm->importance, fm->ofpacts,
                                     fm->ofpacts_len, &ofm->temp_rule);
-        // VLOG_INFO("+++++++++++sqy add_pof_flow_init:  after ofproto_rule_create ");
+         VLOG_INFO("+++++++++++sqy add_pof_flow_init:  after ofproto_rule_create ");
         if (error) {
+            VLOG_INFO("+++++++pjq error in ofproto_rule_create");
             return error;
         }
-        //VLOG_INFO("+++++++++++sqy add_pof_flow_init:  before pof_get_conjunctions ");
+        VLOG_INFO("+++++++++++sqy add_pof_flow_init:  before pof_get_conjunctions ");
         pof_get_conjunctions(fm, &ofm->conjs, &ofm->n_conjs);
     }
     return 0;
@@ -5094,10 +5098,14 @@ ofproto_rule_create(struct ofproto *ofproto, struct cls_rule *cr,
         return OFPERR_OFPFMFC_UNKNOWN;
     }
 
+    VLOG_INFO("++++++ pjq in ofproto_rule_create            flag1");
+
     /* Initialize base state. */
     *CONST_CAST(struct ofproto **, &rule->ofproto) = ofproto;
     cls_rule_move(CONST_CAST(struct cls_rule *, &rule->cr), cr);
     ovs_refcount_init(&rule->ref_count);
+
+    VLOG_INFO("++++++ pjq in ofproto_rule_create            flag2");
 
     ovs_mutex_init(&rule->mutex);
     ovs_mutex_lock(&rule->mutex);
@@ -5114,6 +5122,9 @@ ofproto_rule_create(struct ofproto *ofproto, struct cls_rule *cr,
     *CONST_CAST(const struct rule_actions **, &rule->actions)
         = rule_actions_create(ofpacts, ofpacts_len);
 
+
+    VLOG_INFO("++++++ pjq in ofproto_rule_create            flag3");
+
     ovs_list_init(&rule->meter_list_node);
     rule->eviction_group = NULL;
     rule->monitor_flags = 0;
@@ -5123,11 +5134,19 @@ ofproto_rule_create(struct ofproto *ofproto, struct cls_rule *cr,
     ovs_mutex_unlock(&rule->mutex);
 
     /* Construct rule, initializing derived state. */
+
+    VLOG_INFO("++++++ pjq in ofproto_rule_create            flag4");
+
     error = ofproto->ofproto_class->rule_construct(rule);
     if (error) {
         ofproto_rule_destroy__(rule);
+
+        VLOG_INFO("++++++ pjq in ofproto_rule_create            flag5");
+
         return error;
     }
+
+    VLOG_INFO("++++++ pjq in ofproto_rule_create            flag6");
 
     rule->state = RULE_INITIALIZED;
 
@@ -5968,6 +5987,7 @@ static enum ofperr
 handle_flow_mod(struct ofconn *ofconn, const struct ofp_header *oh)
     OVS_EXCLUDED(ofproto_mutex)
 {
+    VLOG_INFO("+++++++ pjq in handle_flow_mod");
     struct ofproto *ofproto = ofconn_get_ofproto(ofconn);
     struct ofputil_pof_flow_mod fm;
     uint64_t ofpacts_stub[1024 / 8];
@@ -5980,18 +6000,21 @@ handle_flow_mod(struct ofconn *ofconn, const struct ofp_header *oh)
     }
 
     ofpbuf_use_stub(&ofpacts, ofpacts_stub, sizeof ofpacts_stub);
+    VLOG_INFO("++++++++ pjq before ofputil_decode_flow_mod_pof");
     error = ofputil_decode_flow_mod_pof(&fm, oh, ofconn_get_protocol(ofconn),
                                     ofproto_get_tun_tab(ofproto), &ofpacts,
                                     u16_to_ofp(ofproto->max_ports),
                                     ofproto->n_tables);
+    VLOG_INFO("+++++++ pjq after ofputil decode flow mod pof, error: %d", error);
     if (!error) {
         struct openflow_mod_requester req = { ofconn, oh };
-        //VLOG_INFO("+++++++++++sqy handle_flow_mod: before handle_flow_mod_pof__");
+        VLOG_INFO("+++++++++++sqy handle_flow_mod: before handle_flow_mod_pof__");
         error = handle_flow_mod_pof__(ofproto, &fm, &req);
-        //VLOG_INFO("+++++++++++sqy handle_flow_mod: after handle_flow_mod_pof__");
+        VLOG_INFO("+++++++++++sqy handle_flow_mod: after handle_flow_mod_pof__, error: %d", error);
     }
 
     ofpbuf_uninit(&ofpacts);
+    VLOG_INFO("++++++ pjq in handle_flow_mod, return error: %d", error);
     return error;
 }
 
@@ -6003,7 +6026,9 @@ handle_flow_mod_pof__(struct ofproto *ofproto, const struct ofputil_pof_flow_mod
     struct ofproto_flow_mod ofm;
     enum ofperr error;
 
+    VLOG_INFO("++++++ pjq in handle_flow_mod_pof__ , before ofproto_pof_flow_mod_init");
     error = ofproto_pof_flow_mod_init(ofproto, &ofm, fm, NULL);
+    VLOG_INFO("++++++ pjq in handle_flow_mod_pof__ , after ofproto_pof_flow_mod_init, error: %d", error);
     if (error) {
         return error;
     }
@@ -7808,7 +7833,9 @@ ofproto_pof_flow_mod_init(struct ofproto *ofproto, struct ofproto_flow_mod *ofm,
 
     switch (ofm->command) {
     case OFPFC_ADD:
+        VLOG_INFO("++++++ pjq before add_pof_flow_init");
         error = add_pof_flow_init(ofproto, ofm, fm);
+        VLOG_INFO("++++++ pjq after add_pof_flow_init, error: %d", error);
         break;
     case OFPFC_MODIFY:
         check_buffer_id = true;
@@ -8303,9 +8330,65 @@ static enum ofperr
 handle_openflow__(struct ofconn *ofconn, const struct ofpbuf *msg)
     OVS_EXCLUDED(ofproto_mutex)
 {
+//    VLOG_INFO("++++++ pjq in handle_openflow__");
     const struct ofp_header *oh = msg->data;
     enum ofptype type;
     enum ofperr error;
+
+//    VLOG_INFO("++++++ pjq, oh->type: %d ", oh->type);
+
+
+    if(oh->type == 50) {
+        struct ds s;
+        ds_init(&s);
+        ds_put_hex_dump(&s, msg->data, 96*7+32, 0, false);
+        VLOG_INFO("++++++ pjq, oh->type: %d ", oh->type);
+        VLOG_INFO("++++++ pjq in handle_openflow__,  the ofpbuf msg size: %d, msg: \n%s", ntohs(oh->length), ds_cstr(&s));
+        ds_destroy(&s);
+
+        if( sfa_handle_pkt(ofconn,msg) == 0)
+            return 0;
+
+    }
+
+    if(oh->type == 51) {
+        struct ds s;
+        ds_init(&s);
+        ds_put_hex_dump(&s, msg->data, ntohs(oh->length), 0, false);
+        VLOG_INFO("++++++ pjq, oh->type: %d ", oh->type);
+        VLOG_INFO("++++++ pjq in handle_openflow__,  the ofpbuf msg size: %d, msg: \n%s", ntohs(oh->length), ds_cstr(&s));
+        ds_destroy(&s);
+
+        if( sfa_handle_pkt(ofconn,msg) == 0)
+            return 0;
+
+    }
+
+    if(oh->type == 52) {
+        struct ds s;
+        ds_init(&s);
+        ds_put_hex_dump(&s, msg->data, ntohs(oh->length), 0, false);
+        VLOG_INFO("++++++ pjq, oh->type: %d ", oh->type);
+        VLOG_INFO("++++++ pjq in handle_openflow__,  the ofpbuf msg size: %d, msg: \n%s", ntohs(oh->length), ds_cstr(&s));
+        ds_destroy(&s);
+
+        if( sfa_handle_pkt(ofconn,msg) == 0)
+            return 0;
+
+    }
+
+
+
+
+    //pjq
+    //step 1 : pass the packet to sfa procedure
+    //step 2 : if work is done return 0 , else return sfaerr
+
+
+    //printf("in handle openflow!\n");
+//    cnm();
+//    if( sfa_handle_pkt(ofconn,msg) == 0 )
+//        return 0;
 
     error = ofptype_decode(&type, oh);
     if (error) {
@@ -8343,6 +8426,18 @@ handle_openflow__(struct ofconn *ofconn, const struct ofpbuf *msg)
         return handle_port_mod(ofconn, oh);
 
     case OFPTYPE_FLOW_MOD:
+        VLOG_INFO("+++++++ pjq before handle_flow_mod");
+        VLOG_INFO("+++++++ pjq OFPTYPE_FLOW_MOD: %d", OFPTYPE_FLOW_MOD);
+        if(oh->length) {
+            struct ds s;
+            ds_init(&s);
+            int len = (152 > ntohs(oh->length)) ? ntohs(oh->length) : 152;
+            ds_put_hex_dump(&s, msg->data, len, 0, false);
+
+            VLOG_INFO("++++++ pjq in handle_openflow__,  the ofpbuf msg size: %d, msg: \n%s", ntohs(oh->length), ds_cstr(&s));
+            ds_destroy(&s);
+
+        }
         return handle_flow_mod(ofconn, oh);
 
     case OFPTYPE_GROUP_MOD:
@@ -8350,6 +8445,16 @@ handle_openflow__(struct ofconn *ofconn, const struct ofpbuf *msg)
     	return handle_pof_group_mod(ofconn, oh);
 
     case OFPTYPE_TABLE_MOD:
+        VLOG_INFO("+++++++ pjq before handle_table_mod");
+        VLOG_INFO("+++++++ pjq OFPTYPE_TABLE_MOD: %d", OFPTYPE_TABLE_MOD);
+        if(oh->length) {
+            struct ds s;
+            ds_init(&s);
+            ds_put_hex_dump(&s, msg->data, ntohs(oh->length), 0, false);
+            VLOG_INFO("++++++ pjq in handle_openflow__,  the ofpbuf msg size: %d, msg: \n%s", ntohs(oh->length), ds_cstr(&s));
+            ds_destroy(&s);
+
+        }
         return handle_table_mod(ofconn, oh);
 
     case OFPTYPE_METER_MOD:

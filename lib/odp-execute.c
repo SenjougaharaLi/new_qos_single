@@ -60,51 +60,6 @@ ether_addr_copy_masked(struct eth_addr *dst, const struct eth_addr src,
     }
 }
 
-static void
-odp_pof_set_field(struct dp_packet *packet, const struct ovs_key_set_field *key,
-                  const struct ovs_key_set_field *mask)
-{
-   /* VLOG_INFO("+++++++++++sqy odp_pof_set_field:key->offset = %d, len= %d, fieldid= %d", key->offset, key->len, key->field_id);*/
-    uint8_t *value = dp_packet_pof_set_field(packet, key->offset);
-
-    if (value) {
-        if (!mask) {
-            for(int i=0; i<key->len; i++){
-                *(value+i) = key->value[i];
-            }
-        } else {
-            for(int i=0; i<key->len; i++){
-                /*VLOG_INFO("+++++++++++sqy 3333 odp_pof_set_field before:key->value[i]= %d, %d, %d", key->value[i], *(value+i), mask->value[i] );*/
-                *(value+i) = key->value[i] |(*(value+i) & ~mask->value[i]);
-                /*VLOG_INFO("+++++++++++sqy odp_pof_set_field after: %d, %d", key->value[i], *(value+i));*/
-            }
-            /*ether_addr_copy_masked(&eh->eth_src, key->eth_src, mask->eth_src);
-            ether_addr_copy_masked(&eh->eth_dst, key->eth_dst, mask->eth_dst);*/
-        }
-    }
-}
-
-static void
-odp_pof_modify_field(struct dp_packet *packet, const struct ovs_key_modify_field *key,
-                    const struct ovs_key_modify_field *mask)
-{
-	uint8_t *value = dp_packet_pof_modify_field(packet, key->offset);
-    uint8_t *lowest_byte = value + (key->len - 1);
-    /*VLOG_INFO("++++++tsf odp_pof_modify_field: *lowest_byte=%d, value[0]=%d", *lowest_byte, key->value[0]);*/
-
-    if (value) {
-        if (!mask) {
-            *lowest_byte += key->value[0];
-            /*VLOG_INFO("++++++tsf odp_pof_modify_field/wo mask: key->value[0]=%d, key->mask[0]=%d, *lowest_byte=%d",
-                      key->value[0], mask->value[0], *lowest_byte);*/
-        } else {   // run here
-        	/**lowest_byte += key->value[0];*/
-            *lowest_byte += key->value[0];
-            /*VLOG_INFO("++++++tsf odp_pof_modify_field/wt mask: key->value[0]=%d, key->mask[0]=%d, *lowest_byte=%d",
-                      key->value[0], mask->value[0], *lowest_byte);*/
-        }
-    }
-}
 
 
 /* tsf: convert uint64_t data into byte array. */
@@ -152,8 +107,9 @@ int counter = 0;          // used to limit log rate
 
 /* tsf: src header: type=0x0908, ttl=0x01 */
 #define INT_SRC_TYPE_TTL         0x090801
-uint8_t int_src_type_ttl[3] = {0x09, 0x08, 0x01};
+uint8_t int_src_type_ttl = 0x01;
 uint16_t INT_TYPE_VAL_H       =      0x0908;
+uint16_t SRINT_TYPE_VAL_H       =      0x0808;
 uint16_t ETH_TYPE_VAL_H       =      0x0800;
 uint16_t INT_TYPE_VAL_N       =      0x0809;
 uint16_t ETH_TYPE_VAL_N       =      0x0008;   // network byte order
@@ -191,211 +147,269 @@ uint64_t INT_HEADER_PKT_CNT = 0;       // count packets for N to insert INT head
 
 double ber = 0;    /* optical layer data. global extern variable, called in ovs-vswitchd.c. */
 
+
+static void
+odp_pof_set_field(struct dp_packet *packet, const struct ovs_key_set_field *key,
+                  const struct ovs_key_set_field *mask, long long ingress_time, struct bandwidth_info *bd_info)
+{
+    char * header;
+//    VLOG_INFO("+++++++++++zqt odp_pof_set_field:key->offset = %d, len= %d, fieldid= %d", key->offset, key->len, key->field_id);
+//    uint8_t *value = dp_packet_pof_set_field(packet, key->offset);
+    if (key->field_id != 0xffff) {
+        uint8_t *value = dp_packet_pof_set_field(packet, (key->offset));
+        if (value) {
+            if (!mask) {
+                for (int i = 0; i < key->len; i++) {
+                    *(value + i) = key->value[i];
+//                    VLOG_INFO("+++++++++++zqt odp_pof_set_field:!mask");
+                }
+            } else {
+                for (int i = 0; i < key->len; i++) {
+//                    VLOG_INFO("+++++++++++sqy 11111 odp_pof_set_field before:key->value[i]= %d, %d, %d", key->value[i], *(value+i), mask->value[i] );
+                    *(value + i) = key->value[i] | (*(value + i) & ~mask->value[i]);
+//                    VLOG_INFO("+++++++++++sqy odp_pof_set_field after: %d, %d", key->value[i], *(value+i));
+                }
+                /*ether_addr_copy_masked(&eh->eth_src, key->eth_src, mask->eth_src);
+                ether_addr_copy_masked(&eh->eth_dst, key->eth_dst, mask->eth_dst);*/
+            }
+        }
+    } else {   // 'add_dynamic_field' or 'add_int_field' action, fields come from data plane
+
+        /** @param key->value[0] controller mapInfo. if is 0xffff, then we read 'mapInfo' from packets
+         * @param key->offset define where to insert INT data fields. determined by data plane or controller (see flag 'use_controller_offset').
+         * @param key->len refers to N, which selects one every N packets.
+         * */
+
+        uint8_t device_id = (uint8_t) key->device_id;
+//        uint8_t in_port = (uint8_t)key->in_port;
+        uint8_t out_port = (uint8_t) key->out_port;
+
+        device_id = device_id<<4;
+        uint8_t dp = device_id + out_port;
+
+        uint32_t ingress_time__ = (uint32_t) ingress_time;       // tsf: used to calculate delta_time
+//        VLOG_INFO("+++++++zqt odp_pof_add_field, return: ingress_time__=%x", ingress_time__);
+        float bandwidth = 0.0;    // initialized value, if change, else keep
+        uint16_t int_len = 0;
+        uint8_t int_value[MAX_INT_BYTE_LEN];           // should cover added fields.
+        uint8_t controller_mapInfo = key->value[0];    // the mapInfo comes from controller, 2B
+        uint8_t final_mapInfo = 0;                     // the final intent mapInfo
+
+#ifdef FLOW_BW
+        uint64_t start_times = 0, end_times = 0;
+#endif
+
+        final_mapInfo = controller_mapInfo;
+//        VLOG_INFO("+++++++zqt odp_pof_add_field, return: final_mapInfo=%x", final_mapInfo);
+        if (get_set_bits_of_bytes(final_mapInfo) == 0) {
+//            VLOG_INFO("+++++++tsf odp_pof_add_field, return: int_type=%x", int_type);
+            return;
+        }
+
+        if (final_mapInfo & (UINT8_C(1))) { // zqt: device_id, 1B
+            memcpy(int_value + int_len, &dp, 1);
+            int_len += 1;
+            /*VLOG_INFO("++++++tsf odp_pof_add_field: device_id=0x%04llx", htonl(device_id));*/
+        }
+
+        if (final_mapInfo & (UINT8_C(1) << 2)) { // tsf: hop latency, 2B
+            uint32_t egress_time = (uint32_t) time_wall_usec();        // current time
+            uint8_t diff_time = ntohs(egress_time - ingress_time__)>>8;  // for packet level
+//            VLOG_INFO("+++++++zqt odp_pof_add_field, return: 8diff_time=%u", diff_time);
+            memcpy(int_value + int_len, &diff_time, 1);
+            int_len += 1;
+            /*VLOG_INFO("++++++tsf odp_pof_add_field: egress_time=0x%llx, diff_lantency= 0x%04lx / %d us", egress_time, diff_time, htonl(diff_time));*/
+        }
+
+        if (final_mapInfo & (UINT8_C(1) << 3)) { // tsf: bandwidth computation insert, 4B
+            bandwidth = (bd_info->n_bytes + INVISIBLE_PKT_SIZE * bd_info->n_packets
+                         + (int_len + INT_DATA_BANDWIDTH_LEN) * 1) / (bd_info->diff_time * 1.0) * 8;  // Mbps
+            uint16_t bandwidth1 = (short) bandwidth;
+            memcpy(int_value + int_len, &bandwidth1, 2);      // stored as float type
+            int_len += 2;
+            /*VLOG_INFO("++++++tsf odp_pof_add_field: bandwidth: 0x%04x / %f Mbps", bandwidth, bandwidth);*/
+        }
+
+        uint8_t *value_ = dp_packet_pof_set_field(packet, (key->offset));
+        if (value_ ) {
+            if (!mask) {
+                for (int i = 0; i < int_len; i++) {
+                    *(value_  + i) = int_value[i];
+                }
+            } else {
+                for (int i = 0; i < int_len; i++) {
+//                    VLOG_INFO("+++++++++++sqy 3333 odp_pof_set_field before:key->value[i]= %d, %d, %d", int_value[i], *(value_ +i));
+//                    *(value_  + i) = int_value[i] | (*(value_  + i));
+                    *(value_  + i) = int_value[i];
+//                    *(value + i) = int_value[i] | (*(value + i) & ~mask->value[i]);
+//                    VLOG_INFO("+++++++++++sqy odp_pof_set_field after: %d, %d", int_value[i], *(value_ +i));
+                }
+            }
+        }
+
+    }
+}
+
+
+static void
+odp_pof_modify_field(struct dp_packet *packet, const struct ovs_key_modify_field *key,
+                     const struct ovs_key_modify_field *mask)
+{
+    char * header;
+
+    /*VLOG_INFO("++++++tsf odp_pof_modify_field: *lowest_byte=%d, value[0]=%d", *lowest_byte, key->value[0]);*/
+    header = dp_packet_data(packet);
+    uint8_t sg_ttl;
+    uint8_t len;
+    uint8_t mapinfo;
+    uint8_t p_ttl;
+//    VLOG_INFO("+++++++tsf odp_pof_add_field, return: int_type=%x", sr_ttl);
+    if (key->field_id != 0xffff) {
+        uint8_t *value = dp_packet_pof_modify_field(packet, key->offset);
+        uint8_t *lowest_byte = value + (key->len - 1);
+
+        if (value) {
+            if (!mask) {
+                *lowest_byte += key->value[0];
+                /*VLOG_INFO("++++++tsf odp_pof_modify_field/wo mask: key->value[0]=%d, key->mask[0]=%d, *lowest_byte=%d",
+                          key->value[0], mask->value[0], *lowest_byte);*/
+            } else {   // run here
+                /**lowest_byte += key->value[0];*/
+                *lowest_byte += key->value[0];
+                /*VLOG_INFO("++++++tsf odp_pof_modify_field/wt mask: key->value[0]=%d, key->mask[0]=%d, *lowest_byte=%d",
+                          key->value[0], mask->value[0], *lowest_byte);*/
+            }
+        }
+    }
+    else {
+//        memcpy(&sr_ttl, header + (key->offset), 1);
+        memcpy(&sg_ttl, header + 14, 1);
+        memcpy(&len, header + 15, 1);
+        memcpy(&mapinfo, header + 16, 1);
+        memcpy(&p_ttl, header + 17 + (len)*4, 1);
+
+        if(sg_ttl!=0x00){
+            if(p_ttl!=0x01){ //pTTL = pTTL - 1;
+                uint8_t *value = dp_packet_pof_modify_field(packet, key->offset);
+                uint8_t *lowest_byte = value + (key->len - 1);
+                if (value) {
+                    if (!mask) {
+                        *lowest_byte += key->value[0];
+                        /*VLOG_INFO("++++++tsf odp_pof_modify_field/wo mask: key->value[0]=%d, key->mask[0]=%d, *lowest_byte=%d",
+                                  key->value[0], mask->value[0], *lowest_byte);*/
+                    } else {   // run here
+                        /**lowest_byte += key->value[0];*/
+                        *lowest_byte += key->value[0];
+                        /*VLOG_INFO("++++++tsf odp_pof_modify_field/wt mask: key->value[0]=%d, key->mask[0]=%d, *lowest_byte=%d",
+                                  key->value[0], mask->value[0], *lowest_byte);*/
+                    }
+                }
+            }else{    //sgTTL = sgTTL - 1;
+                uint8_t *value = dp_packet_pof_modify_field(packet, 112); // offset is 14B
+                uint8_t *lowest_byte = value + (key->len - 1);
+                if (value) {
+                    if (!mask) {
+                        *lowest_byte += key->value[0];
+                        /*VLOG_INFO("++++++tsf odp_pof_modify_field/wo mask: key->value[0]=%d, key->mask[0]=%d, *lowest_byte=%d",
+                                  key->value[0], mask->value[0], *lowest_byte);*/
+                    } else {   // run here
+                        /**lowest_byte += key->value[0];*/
+                        *lowest_byte += key->value[0];
+                        /*VLOG_INFO("++++++tsf odp_pof_modify_field/wt mask: key->value[0]=%d, key->mask[0]=%d, *lowest_byte=%d",
+                                  key->value[0], mask->value[0], *lowest_byte);*/
+                    }
+                }
+                //delete pField
+                memmove(header + 4, header, (key->offset));  // shift the packet's length=key->offset backward key->len bytes
+                dp_packet_pof_resize_field(packet, -4);
+            }
+        }else{
+            //delete sgField
+            memmove(header + 3  + sg_ttl*4, header, 14 );  // shift the packet's length=key->offset backward key->len bytes   // offset is 14B
+            dp_packet_pof_resize_field(packet, - (3 + sg_ttl*4) ); // len = 1 + (sgTTL)*4
+            memcpy(header + ETH_TYPE_OFF, &ETH_TYPE_VAL_N, ETH_TYPE_LEN);
+        }
+    }
+}
+
+
+
+
 static void
 odp_pof_add_field(struct dp_packet *packet, const struct ovs_key_add_field *key,
                   const struct ovs_key_add_field *mask, long long ingress_time,
                   struct bandwidth_info *bd_info)
 {
-	char * header;
+    char * header;
 
-	/** tsf: if field_id=0xffff, then to add INT field, the `value` store the adding intent.
-	 *       otherwise, then to add static fields that comes from controller.
-	 **/
-	if (key->field_id != 0xffff) {   // 'add_static_field' action, fields come from controller
+    /** tsf: if field_id=0xffff, then to add INT field, the `value` store the adding intent.
+     *       otherwise, then to add static fields that comes from controller.
+     **/
+    if (key->field_id != 0xffff) {   // 'add_static_field' action, fields come from controller
         header = dp_packet_pof_resize_field(packet, key->len);
         memmove(header, header + key->len, key->offset);
-		memcpy(header + key->offset, key->value, key->len);
-	} else {   // 'add_dynamic_field' or 'add_int_field' action, fields come from data plane
+        memcpy(header + key->offset, key->value, key->len);
+    } else {   // 'add_dynamic_field' or 'add_int_field' action, fields come from data plane
 
-	    /** @param key->value[0] controller mapInfo. if is 0xffff, then we read 'mapInfo' from packets
-	     * @param key->offset define where to insert INT data fields. determined by data plane or controller (see flag 'use_controller_offset').
-	     * @param key->len refers to N, which selects one every N packets.
-	     * */
+        /** @param key->value[0] controller mapInfo. if is 0xffff, then we read 'mapInfo' from packets
+         * @param key->offset define where to insert INT data fields. determined by data plane or controller (see flag 'use_controller_offset').
+         * @param key->len refers to N, which selects one every N packets.
+         * */
 
-		uint32_t device_id = ntohl((uint32_t) key->device_id);
-		uint32_t in_port = ntohl(key->in_port);
-		uint32_t out_port = ntohl(key->out_port);
+        uint8_t device_id = (uint8_t) key->device_id;
+        uint8_t out_port = (uint8_t) key->out_port;
 
-        uint32_t diff_time = 0;
+        device_id = device_id<<4;
+        uint8_t dp = device_id + out_port;
         uint32_t ingress_time__ = (uint32_t) ingress_time;       // tsf: used to calculate delta_time
 
         float bandwidth = 0.0;    // initialized value, if change, else keep
-		uint64_t n_packets = ntohll(bd_info->n_packets);
-		uint64_t n_bytes = ntohll(bd_info->n_bytes);
 
-//		uint32_t queue_len = 0;
-		uint32_t fwd_acts = ntohl(key->fwd_acts);
-//        extern double ber;    /* optical layer data. */
+//        uint16_t int_offset = 14;
+        uint16_t int_len = 0;                          // indicate how many available bytes in int_value[]
+        uint8_t int_value[MAX_INT_BYTE_LEN];           // should cover added fields.
 
-        uint16_t int_offset = INT_HEADER_DATA_OFF;
-		uint16_t int_len = 0;                          // indicate how many available bytes in int_value[]
-		uint8_t int_value[MAX_INT_BYTE_LEN];           // should cover added fields.
+        uint8_t controller_mapInfo = key->value[0];    // the mapInfo comes from controller, 2B
+        uint16_t final_mapInfo = 0;                     // the final intent mapInfo
 
-		int controller_mapInfo = (key->value[0] << 8) + key->value[1];    // the mapInfo comes from controller, 2B
-        /*VLOG_INFO("+++++++tsf odp_pof_add_field, v0:%x, v1:%x, ctl_info: %04x\n", key->value[0], key->value[1], controller_mapInfo);*/
-//        controller_mapInfo = ntohs(controller_mapInfo);
-		uint16_t final_mapInfo = 0;                     // the final intent mapInfo
 
-        uint16_t sampling_rate_N = key->len;           // the sampling rate defined by key->len ('N')
-        /*VLOG_INFO("+++++++tsf odp_pof_add_field, N: %d\n", sampling_rate_N);*/
-
-		uint16_t int_type = 0;
-#ifdef FLOW_BW
-        uint64_t start_times = 0, end_times = 0;
-#endif
-		/* If controller_mapInfo is 0xffff, which means we use dataplane's mapInfo.
-		 * I finally decide to set 'int_offset' according to 'use_controller_flag'. */
-		if (controller_mapInfo == 0xffff) {
-            header = dp_packet_data(packet);   // tsf: start of the original header
-            int_offset = (use_controller_offset ? int_offset : INT_HEADER_DATA_OFF);  // exclude type+ttl+mapInfo
-			memcpy(&final_mapInfo, header + INT_HEADER_MAPINFO_OFF, INT_HEADER_MAPINFO_LEN); // read data plane to get 'mapInfo'
-			memcpy(&int_type, header + INT_HEADER_TYPE_OFF, INT_HEADER_TYPE_LEN);  // check
-			int_type = ntohs(int_type);
-
-            final_mapInfo = ntohs(final_mapInfo);
-
-            if ((int_type != INT_TYPE_VAL_H)) {
-                return;
-            }
-			/*VLOG_INFO("+++++++tsf odp_pof_add_field, f_mapInfo = %x, c_mapInfo=%x, int_type=%x", final_mapInfo, controller_mapInfo, int_type);*/
-		} else {
-
-		    /* tsf: sampling policy at src: 1/N. bd_info->sel_int_packets can be ignored. */
-            INT_HEADER_PKT_CNT++;
-            /*VLOG_INFO("+++++++tsf odp_pof_add_field, controller_mapInfo:%x, cnt:%d, N:%d\n", controller_mapInfo, INT_HEADER_PKT_CNT, sampling_rate_N);*/
-
-            if (INT_HEADER_PKT_CNT % sampling_rate_N != 0) {
-#ifdef FLOW_BW
-                end_times = time_msec();
-#endif
-                return;
-            }
-            else {
-#ifdef FLOW_BW
-                start_times = time_msec();
-#endif
-            }
-#ifdef FLOW_BW
-            bd_info->diff_time = end_times - start_times; // tsf: the interval is used to calculate flow's bandwidth
-#endif
-
-            final_mapInfo = controller_mapInfo & CPU_BASED_MAPINFO;
-            int_offset = (use_controller_offset ? int_offset : INT_HEADER_BASE);      // include type+ttl+mapInfo
-            /* tsf: we add mapInfo, 2B. 'Type + TTL' added by controller. */
-            int_len += (INT_HEADER_TYPE_LEN + INT_HEADER_TTL_LEN);
-            memcpy(int_value, &int_src_type_ttl, int_len);
-            uint16_t pkt_mapInfo = htons(controller_mapInfo);
-            memcpy(int_value + int_len, &pkt_mapInfo, INT_HEADER_MAPINFO_LEN);
-            int_len += INT_HEADER_MAPINFO_LEN;
-            /*VLOG_INFO("++++++tsf odp_pof_add_field: mapInfo=%x", final_mapInfo);*/
-		}
-
-		/* Check the numbers of set bits in final_mapInfo. If equal to 0, return directly.
-		 * Then, we add final_mapInfo to 'int_value' ahead when it comes from controller,
-		 * otherwise followed with INT data only (for data plane's mapInfo). */
-        final_mapInfo = final_mapInfo & CPU_BASED_MAPINFO;
-		if (get_set_bits_of_bytes(final_mapInfo) == 0) {
-			/*VLOG_INFO("+++++++tsf odp_pof_add_field, return: int_type=%x", int_type);*/
-			return;
-		}
-
-        /*VLOG_INFO("+++++++tsf odp_pof_add_field, controller_mapInfo:0x%02x, final_mapInfo:0x%02x\n", controller_mapInfo, final_mapInfo);*/
-
-        if (final_mapInfo & (UINT16_C(1))) { // tsf: device_id, 4B
-        	memcpy(int_value + int_len, &device_id, INT_DATA_DPID_LEN);
-        	int_len += INT_DATA_DPID_LEN;
-        	/*VLOG_INFO("++++++tsf odp_pof_add_field: device_id=0x%04llx", htonl(device_id));*/
+        final_mapInfo = controller_mapInfo;
+        if (get_set_bits_of_bytes(final_mapInfo) == 0) {
+            /*VLOG_INFO("+++++++tsf odp_pof_add_field, return: int_type=%x", int_type);*/
+            return;
         }
 
-        if (final_mapInfo & (UINT16_C(1) << 1)) { // tsf: in_port, 4B
-        	memcpy(int_value + int_len, &in_port, INT_DATA_IN_PORT_LEN);
-        	int_len += INT_DATA_IN_PORT_LEN;
-        	/*VLOG_INFO("++++++tsf odp_pof_add_field: in_port=0x%04llx", in_port);*/
+        if (final_mapInfo & (UINT8_C(1))) { // tsf: device_id, 4B
+            memcpy(int_value + int_len, &dp, 1);
+            int_len += 1;
+            /*VLOG_INFO("++++++tsf odp_pof_add_field: device_id=0x%04llx", htonl(device_id));*/
         }
 
-        if (final_mapInfo & (UINT16_C(1) << 2)) { // tsf: out_port, 4B
-        	memcpy(int_value + int_len, &out_port, INT_DATA_OUT_PORT_LEN);
-        	int_len += INT_DATA_OUT_PORT_LEN;
-        	/*VLOG_INFO("++++++tsf odp_pof_add_field: out_port=0x%04lx", out_port);*/
+        if (final_mapInfo & (UINT8_C(1) << 2)) { // tsf: hop latency, 2B
+            uint32_t egress_time = (uint32_t) time_wall_usec();        // current time
+            uint8_t diff_time = ntohs(egress_time - ingress_time__)>>8;  // for packet level
+//            VLOG_INFO("+++++++zqt odp_pof_add_field, return: 8diff_time=%u", diff_time);
+            memcpy(int_value + int_len, &diff_time, 1);
+            int_len += 1;
+            /*VLOG_INFO("++++++tsf odp_pof_add_field: egress_time=0x%llx, diff_lantency= 0x%04lx / %d us", egress_time, diff_time, htonl(diff_time));*/
         }
-
-        if (final_mapInfo & (UINT16_C(1) << 3)) { // tsf: ingress_time, 8B
-            ingress_time = htonll(ingress_time);
-            memcpy(int_value + int_len, &ingress_time, INT_DATA_INGRESS_TIME_LEN);
-        	int_len += INT_DATA_INGRESS_TIME_LEN;
-        	/*VLOG_INFO("++++++tsf odp_pof_add_field: ingress_time=0x%08llx / 0x%llx", ingress_time, ingress_time__);*/
-        }
-
-        if (final_mapInfo & (UINT16_C(1) << 4)) { // tsf: hop latency, 4B
-//        	uint64_t egress_time = (uint64_t) time_usec();             // monotonic timer
-        	uint64_t egress_time = (uint64_t) time_wall_usec();        // current time
-        	diff_time = ntohl((uint32_t) (egress_time - ingress_time__));  // for packet level
-        	memcpy(int_value + int_len, &diff_time, INT_DATA_HOP_LATENCY_LEN);
-        	int_len += INT_DATA_HOP_LATENCY_LEN;
-        	/*VLOG_INFO("++++++tsf odp_pof_add_field: egress_time=0x%llx, diff_lantency= 0x%04lx / %d us", egress_time, diff_time, htonl(diff_time));*/
-        }
-
-        if (final_mapInfo & (UINT16_C(1) << 5)) { // tsf: bandwidth computation insert, 4B
-            /* if consider INT metadata. */
-//            bandwidth = (bd_info->n_bytes + INVISIBLE_PKT_SIZE * bd_info->n_packets
-//                        + (int_len + INT_DATA_BANDWIDTH_LEN) * 1) / (bd_info->diff_time * 1.0) * 8;  // Mbps
-
-            /* if don't calculate INT metadata. */
-            bandwidth = (bd_info->n_bytes + INVISIBLE_PKT_SIZE * bd_info->n_packets) / (bd_info->diff_time * 1.0) * 8;  // Mbps
-
-            memcpy(int_value + int_len, &bandwidth, INT_DATA_BANDWIDTH_LEN);      // stored as float type
-            int_len += INT_DATA_BANDWIDTH_LEN;
+//        VLOG_INFO("+++++++zqt odp_pof_add_field, return: int_len=%x", int_len);
+        if (final_mapInfo & (UINT8_C(1) << 3)) { // tsf: bandwidth computation insert, 4B
+            bandwidth = (bd_info->n_bytes + INVISIBLE_PKT_SIZE * bd_info->n_packets
+                         + (int_len + 2) * 1) / (bd_info->diff_time * 1.0) * 8;  // Mbps
+            uint16_t bandwidth1 = (short) bandwidth;
+            memcpy(int_value + int_len, &bandwidth1, 2);      // stored as float type
+            int_len += 2;
             /*VLOG_INFO("++++++tsf odp_pof_add_field: bandwidth: 0x%04x / %f Mbps", bandwidth, bandwidth);*/
         }
 
-        if (final_mapInfo & (UINT16_C(1) << 6)) { // lty: n_packets,8B
-            memcpy(int_value + int_len, &n_packets, INT_DATA_N_PACKETS_LEN);
-            int_len += INT_DATA_N_PACKETS_LEN;
-            /*VLOG_INFO("++++++tsf odp_pof_add_field: n_packets: 0x%08x / %d p", n_packets, n_packets);*/
-        }
-
-        if (final_mapInfo & (UINT16_C(1) << 7)) {// lty: n_bytes, 8B
-            memcpy(int_value + int_len, &n_bytes, INT_DATA_N_BYTES_LEN);
-            int_len += INT_DATA_N_BYTES_LEN;
-            /*VLOG_INFO("++++++tsf odp_pof_add_field: n_bytes: 0x%08x / %d B", n_bytes, n_bytes);*/
-        }
-
-        if (final_mapInfo & (UINT16_C(1) << 8)) {// tsf: queue_len, 4B
-            // not supported, do nothing
-        }
-
-        if (final_mapInfo & (UINT16_C(1) << 9)) {// tsf: fwd_acts, 4B
-            memcpy(int_value + int_len, &fwd_acts, INT_DATA_FWD_ACTS_LEN);
-            int_len += INT_DATA_FWD_ACTS_LEN;
-            /*VLOG_INFO("++++++tsf odp_pof_add_field: fwd_acts: 0x%04x", fwd_acts);*/
-        }
-
-        if (final_mapInfo & (UINT16_C(1) << 10)) {// tsf: ber, 8B, double
-            memcpy(int_value + int_len, &ber, INT_DATA_BER_LEN);
-            int_len += INT_DATA_BER_LEN;
-        }
-
-        /* Adjust counter's value to control log rate.*/
-        /*counter++;
-        int thresh = 5000000;
-        if(counter >= thresh) {
-        	counter = 0;
-        	uint32_t egress_time = (uint32_t) time_wall_usec();        // current time
-        	uint16_t diff_time = ntohs(egress_time - ingress_time__);  // for packet level
-        	VLOG_INFO("odp_pof_add_field: add_field_hop_latency=%d", diff_time);
-        	VLOG_INFO("++++++tsf odp_pof_add_field: n_pkt=%d / %d, orig_pkt_len=%d, int_len=%d, pkt_sizes=%d, batch_diff_time=%d us, bandwidth=%f Mbps",
-        	         bd_info->n_packets, bd_info->sel_int_packets, dp_packet_size(packet), int_len, (bd_info->n_bytes + int_len*bd_info->sel_int_packets), bd_info->diff_time, bandwidth);
-        }*/
-
-        /*VLOG_INFO("++++++tsf odp_pof_add_field: before dp_packet_pof_resize_field, int_value=%s, offset=%d, int_len=%d ",
-        		int_value, key->offset, int_len);*/
         header = dp_packet_pof_resize_field(packet, int_len);
-        memmove(header, header + int_len, int_offset);
-        memcpy(header + int_offset, int_value, int_len);
+        memmove(header, header + int_len, key->offset);
+        memcpy(header + key->offset, int_value, int_len);
 
 //        INT_TYPE_VAL = htons(INT_TYPE_VAL);
         memcpy(header + ETH_TYPE_OFF, &INT_TYPE_VAL_N, ETH_TYPE_LEN);
-	}
+    }
 }
 
 
@@ -814,24 +828,25 @@ odp_execute_masked_set_action(struct dp_packet *packet,
     struct mpls_hdr *mh;
 
     switch (type) {
-    case OVS_KEY_ATTR_SET_FIELD:
-        /*VLOG_INFO("+++++++++++sqy odp_execute_masked_set_action: before OVS_KEY_ATTR_SET_FIELD");*/
-        odp_pof_set_field(packet, nl_attr_get(a),
-                          get_mask(a, struct ovs_key_set_field));
-        /*VLOG_INFO("+++++++++++sqy odp_execute_masked_set_action: after OVS_KEY_ATTR_SET_FIELD");*/
-        break;
-    case OVS_KEY_ATTR_MODIFY_FIELD:
-    	/*VLOG_INFO("+++++++++++tsf odp_execute_masked_set_action: before OVS_KEY_ATTR_MODIFY_FIELD");*/
-    	odp_pof_modify_field(packet, nl_attr_get(a),
-    						get_mask(a, struct ovs_key_modify_field));
-    	/*VLOG_INFO("+++++++++++tsf odp_execute_masked_set_action: after OVS_KEY_ATTR_MODIFY_FIELD");*/
-    	break;
-    case OVS_KEY_ATTR_ADD_FIELD:
-    	/*VLOG_INFO("+++++++++++tsf odp_execute_masked_set_action: before OVS_KEY_ATTR_ADD_FIELD");*/
-    	odp_pof_add_field(packet, nl_attr_get(a),
-    						get_mask(a, struct ovs_key_add_field),
-    						ingress_time, bd_info);
-    	break;
+        case OVS_KEY_ATTR_SET_FIELD:
+//            VLOG_INFO("+++++++++++zqt odp_execute_masked_set_action: before OVS_KEY_ATTR_SET_FIELD");
+            odp_pof_set_field(packet, nl_attr_get(a),
+                              get_mask(a, struct ovs_key_set_field),
+                              ingress_time, bd_info);
+//            VLOG_INFO("+++++++++++zqt odp_execute_masked_set_action: after OVS_KEY_ATTR_SET_FIELD");
+            break;
+        case OVS_KEY_ATTR_MODIFY_FIELD:
+//            VLOG_INFO("+++++++++++zqt odp_execute_masked_set_action: before OVS_KEY_ATTR_MODIFY_FIELD");
+            odp_pof_modify_field(packet, nl_attr_get(a),
+                                 get_mask(a, struct ovs_key_modify_field));
+//            VLOG_INFO("+++++++++++zqt odp_execute_masked_set_action: after OVS_KEY_ATTR_MODIFY_FIELD");
+            break;
+        case OVS_KEY_ATTR_ADD_FIELD:
+//            VLOG_INFO("+++++++++++zqt odp_execute_masked_set_action: before OVS_KEY_ATTR_ADD_FIELD");
+            odp_pof_add_field(packet, nl_attr_get(a),
+                              get_mask(a, struct ovs_key_add_field),
+                              ingress_time, bd_info);
+            break;
     case OVS_KEY_ATTR_DELETE_FIELD:
     	/*VLOG_INFO("+++++++++++tsf odp_execute_masked_set_action: before OVS_KEY_ATTR_DELETE_FIELD");*/
     	odp_pof_delete_field(packet, nl_attr_get(a),

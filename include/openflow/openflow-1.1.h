@@ -313,6 +313,8 @@ enum ofp11_instruction_type {
     OFPIT11_APPLY_ACTIONS = 4,     /* Applies the action(s) immediately */
     OFPIT11_CLEAR_ACTIONS = 5,     /* Clears all actions from the datapath
                                       action set */
+
+    OFPIT11_GOTO_SP = 12,          /*pjq go to stateful processing */
     OFPIT11_EXPERIMENTER = 0xFFFF  /* Experimenter instruction */
 };
 
@@ -357,6 +359,16 @@ struct ofp11_instruction_actions {
                                              OFPIT_APPLY_ACTIONS */
 };
 OFP_ASSERT(sizeof(struct ofp11_instruction_actions) == 8);
+
+/* pjq instruction structure for OFPIT_GOTO_SP */
+struct ofp11_instruction_goto_sp {
+    ovs_be16 type;
+    ovs_be16 len;
+    uint8_t ins_pad[4];
+    uint8_t bitmap;
+    uint8_t pad[7];    /* Align to 64 bits */
+};
+OFP_ASSERT(sizeof(struct ofp11_instruction_goto_sp) == 16);
 
 /* Instruction structure for experimental instructions */
 struct ofp11_instruction_experimenter {

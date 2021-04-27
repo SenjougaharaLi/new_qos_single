@@ -4101,6 +4101,7 @@ emc_processing(struct dp_netdev_pmd_thread *pmd, struct dp_packet_batch *packets
             dp_netdev_queue_batches(packet, flow, &key->mf, batches,
                                     n_batches);
         } else {
+            VLOG_INFO("+++++ pjq emc loss");
             /* Exact match cache missed. Group missed packets together at
              * the beginning of the 'packets' array.  */
             packets[n_missed] = packet;
@@ -4264,7 +4265,7 @@ fast_path_processing(struct dp_netdev_pmd_thread *pmd,
             }
 
             miss_cnt++;
-//            VLOG_INFO("++++++tsf fast_path_processing: handle_packet_upcall");
+            VLOG_INFO("++++++tsf fast_path_processing: handle_packet_upcall");
             handle_packet_upcall(pmd, packets[i], &keys[i], &actions,
                                  &put_actions, &lost_cnt, now);
         }
@@ -4316,6 +4317,7 @@ dp_netdev_input__(struct dp_netdev_pmd_thread *pmd,
                   bool md_is_valid, odp_port_t port_no)
 {
     int cnt = packets->count;
+    VLOG_INFO("++++ pjq packet count: %d", cnt);
 #if !defined(__CHECKER__) && !defined(_WIN32)
     const size_t PKT_ARRAY_SIZE = cnt;
 #else
@@ -4542,6 +4544,7 @@ dp_execute_cb(void *aux_, struct dp_packet_batch *packets_,
 
     switch ((enum ovs_action_attr)type) {
     case OVS_ACTION_ATTR_OUTPUT:
+        VLOG_INFO("++++ pjq in output");
         p = pmd_tx_port_cache_lookup(pmd, u32_to_odp(nl_attr_get_u32(a)));
         if (OVS_LIKELY(p)) {
             int tx_qid;

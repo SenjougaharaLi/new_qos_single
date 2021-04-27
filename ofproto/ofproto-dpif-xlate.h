@@ -25,6 +25,7 @@
 #include "ofproto-dpif.h"
 #include "ofproto.h"
 #include "stp.h"
+#include "sfa.h"  /* pjq */
 #include "ovs-lldp.h"
 
 struct bfd;

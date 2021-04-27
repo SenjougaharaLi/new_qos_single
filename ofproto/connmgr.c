@@ -1424,6 +1424,23 @@ ofconn_run(struct ofconn *ofconn,
             fail_open_maybe_recover(mgr->fail_open);
         }
 
+//        VLOG_INFO("+++++++ pjq in ofconn_run, before handle_openflow");
+//        const struct ofp_header *oh = of_msg->data;
+//        enum ofptype type;
+//        enum ofperr error;
+//
+////    VLOG_INFO("++++++ pjq, oh->type: %d ", oh->type);
+//
+//
+//        if(oh->type == 50) {
+//            struct ds s;
+//            ds_init(&s);
+//            ds_put_hex_dump(&s, of_msg->data, 92*7+32, 0, false);
+//            VLOG_INFO("++++++ pjq, oh->type: %d ", oh->type);
+//            VLOG_INFO("++++++ pjq in handle_openflow__,  the ofpbuf msg size: %d, msg: \n%s", ntohs(oh->length), ds_cstr(&s));
+//            ds_destroy(&s);
+//
+//        }
         handle_openflow(ofconn, of_msg);
         ofpbuf_delete(of_msg);
     }

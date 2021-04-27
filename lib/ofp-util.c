@@ -1682,6 +1682,7 @@ ofputil_decode_flow_mod_pof(struct ofputil_pof_flow_mod *fm,
                         struct ofpbuf *ofpacts,
                         ofp_port_t max_port, uint8_t max_table)
 {
+    VLOG_INFO("++++++++ pjq in ofputil_decode_flow_mod_pof");
     ovs_be16 raw_flags;
     enum ofperr error;
     struct ofpbuf bb = ofpbuf_const_initializer(oh, ntohs(oh->length));
@@ -1774,7 +1775,8 @@ ofputil_decode_flow_mod_pof(struct ofputil_pof_flow_mod *fm,
         return OFPERR_OFPFMFC_BAD_COMMAND;
     }
 
-    VLOG_INFO("+++++++++++sqy ofputil_decode_flow_mod_pof: befoore ofpacts_pull_openflow_instructions oh->version=%d",oh->version);
+
+    VLOG_INFO("+++++++++++pjq ofputil_decode_flow_mod_pof: befoore ofpacts_pull_openflow_instructions oh->version=%d",oh->version);
     error = ofpacts_pull_openflow_instructions(&b, ofm->instruction_num * OFP11_INSTRUCTION_ALIGN,
                                                oh->version, ofpacts);
     if (error) {
@@ -1848,10 +1850,12 @@ ofputil_decode_flow_mod_pof(struct ofputil_pof_flow_mod *fm,
                                           oh->version, &fm->flags);
     VLOG_INFO("+++++++++++sqy ofputil_decode_flow_mod_pof: after ofputil_decode_flow_mod_flags");
     if (error) {
+        VLOG_INFO("+++++++pjq ofputil decode flow mod flags error");
         return error;
     }
 
     if (fm->flags & OFPUTIL_FF_EMERG) {
+        VLOG_INFO("+++++++pjq OFPUTIL_FF_EMERG");
         /* We do not support the OpenFlow 1.0 emergency flow cache, which
          * is not required in OpenFlow 1.0.1 and removed from OpenFlow 1.1.
          *
