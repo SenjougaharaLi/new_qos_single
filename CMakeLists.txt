@@ -697,8 +697,8 @@ add_executable(OpenvSwitch_pof_zqt
         ofproto/ofproto.h
         ofproto/pinsched.c
         ofproto/pinsched.h
-        ofproto/sfa.c
-        ofproto/sfa.h
+        ofproto/sp.c
+        ofproto/sp.h
         ofproto/tunnel.c
         ofproto/tunnel.h
         ovn/controller/binding.c

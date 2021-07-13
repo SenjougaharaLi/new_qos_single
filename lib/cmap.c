@@ -15,6 +15,7 @@
  */
 
 #include <config.h>
+//#include <include/openvswitch/vlog.h>
 #include "cmap.h"
 #include "coverage.h"
 #include "bitmap.h"
@@ -22,6 +23,8 @@
 #include "ovs-rcu.h"
 #include "random.h"
 #include "util.h"
+
+//VLOG_DEFINE_THIS_MODULE(ofproto_dpif_xlate);
 
 COVERAGE_DEFINE(cmap_expand);
 COVERAGE_DEFINE(cmap_shrink);
@@ -887,6 +890,7 @@ cmap_rehash(struct cmap *cmap, uint32_t mask)
     struct cmap_impl *new;
 
     new = cmap_impl_create(mask);
+    printf("+++++ pjq old->n : %u, new->max_n: %u\n", old->n, new->max_n);
     ovs_assert(old->n < new->max_n);
 
     while (!cmap_try_rehash(old, new)) {

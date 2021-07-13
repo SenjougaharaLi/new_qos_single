@@ -47,8 +47,8 @@ ofproto_libofproto_la_SOURCES = \
 	ofproto/ofproto-dpif-xlate-cache.h \
 	ofproto/pinsched.c \
 	ofproto/pinsched.h \
-	ofproto/sfa.c      \
-	ofproto/sfa.h      \
+	ofproto/sp.c      \
+	ofproto/sp.h      \
 	ofproto/tunnel.c \
 	ofproto/tunnel.h \
 	ofproto/bundles.c \

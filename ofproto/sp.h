@@ -1,6 +1,6 @@
 
-#ifndef SFA_H_ERIC
-#define SFA_H_ERIC 1
+#ifndef SP_H_PJQ
+#define SP_H_PJQ 1
 
 #include <stddef.h>
 #include <stdlib.h>
@@ -14,24 +14,20 @@
 #include "openvswitch/ofp-msgs.h"
 #include "connmgr.h"
 
-int sfa_handle_pkt(struct ofconn *ofconn, const struct ofpbuf *msg);
-//int sfa_handle_pkt(struct ofconn *ofconn, const struct ofpbuf *msg); //pjq
-
+int sp_msg_decode(struct ofconn *ofconn, const struct ofpbuf *msg);
 
 #define MAX_ENTRY 500
 
-enum sfaerr{
-	SFA_MSG_PROCESS_OK,
-	SFA_MSG_PROCESS_ERROR,
+enum sperr{
+	SP_MSG_PROCESS_OK,
+	SP_MSG_PROCESS_ERROR,
 };
 
-/* SFA extension. */
-enum sfatype{
-
-	OFPTYPE_SFA_TABLE_CREATE = 50,	/* sfa_craete_table msg type*/
-	OFPTYPE_SFA_ST_ENTRY_MOD = 51,	/* sfa_st_entry_mode msg type*/
-	OFPTYPE_SFA_AT_ENTRY_MOD = 52,	/* sfa_at_entry_mode msg type*/
-
+/* sp msg type. */
+enum sptype{
+	OFPTYPE_SP_TABLE_CREATE = 50,	/* sp_craete_table msg type*/
+	OFPTYPE_SP_ST_ENTRY_MOD = 51,	/* sp_st_entry_mode msg type*/
+	OFPTYPE_SP_AT_ENTRY_MOD = 52,	/* sp_at_entry_mode msg type*/
 };
 
 
@@ -47,7 +43,7 @@ enum OPRATOR
 	OPRATOR_GREATER,    /* > */
 	OPRATOR_LESS,		/* < */
 	OPRATOR_EQUALGREATER,	/* >= */
-	OPRATOR_EQUALLESS,		/* <= 8 */
+	OPRATOR_EQUALLESS,		/* <=  */
 };
 
 struct sp_match_x {
@@ -69,6 +65,9 @@ struct STT_MATCH_ENTRY{
     uint64_t param_right;
     uint32_t last_status;
     uint32_t cur_status;
+//    uint32_t con_1;     //lty
+//    uint32_t con_0;     //lty
+
 } ;
 
 struct STATUS_TRANZ_TABLE
@@ -80,11 +79,11 @@ struct STATUS_TRANZ_TABLE
 
 
 //********** ACTION TABLE SET ******************************/
-//SFA_ACTION IS ENUM+PARAM
+//SP_ACTION IS ENUM+PARAM
 //AT_MATCH_ENTRY is like ST_MATCH_ENTRY
-struct SFA_ACTION
+struct SP_ACTION
 {
-	enum SFA_ACTION_TYPE
+	enum SP_ACTION_TYPE
 	{
         SAT_NON,
 		SAT_OUTPUT,
@@ -100,7 +99,7 @@ struct AT_MATCH_ENTRY{
 //    struct sp_match_x st_match;
 	char* data;
 	uint32_t last_status;
-	struct SFA_ACTION act;
+	struct SP_ACTION act;
 };
 
 
@@ -162,25 +161,17 @@ struct APPS
 
 
 
-struct sfa_msg_init_st{
+struct sp_msg_init_st{
 	uint32_t aid;
 //	long bitmap;
     uint32_t counts;
 //    uint32_t status;
 	struct sp_match_x st_match;
 
-	//uint32_t lenth;
-	//byte[] data;
-
-//	if counts is 0 means no st entry else the next ele is
-//	#counts of struct data{
-//		uint32_t lenth;
-//		byte[] data}
-
 }; //align to 8 BYTE
 
 
-struct sfa_msg_init_stt
+struct sp_msg_init_stt
 {
 	struct sp_match_x param_left_match;
 	uint16_t pad1;
@@ -206,21 +197,21 @@ struct sfa_msg_init_stt
 };
 
 
-struct sfa_msg_init_at{
+struct sp_msg_init_at{
 //    long bitmap;
 	uint32_t counts;
     struct sp_match_x at_match;
 };
 
 
-struct sfa_msg_mod_st{
+struct sp_msg_mod_st{
     uint32_t type;
     uint32_t status;
     uint32_t len;
     char* value;
 };
 
-struct sfa_msg_mod_at{
+struct sp_msg_mod_at{
     uint32_t type;
     uint32_t act_type;
     uint32_t act_param;
@@ -238,14 +229,14 @@ enum MOD_TYPE
 };
 
 
-struct sfa_msg_mod{
+struct sp_msg_mod{
 	uint32_t appid;
 	uint32_t count;
 	/*
 		#counts of structure if is action table mod
 		{
 		enum TABLE_MOD_TYPE mod type;
-		struct SFA_ACTION act;
+		struct SP_ACTION act;
 		uint32_t last_status;
 		uint32_t data_len;
 		byte[] data;
@@ -267,7 +258,7 @@ struct sfa_msg_mod{
 
 
 
-/*	 sfa init msg pattern
+/*	 sp init msg pattern
  *
  *
  *  |--------------------------32bit ------------------------------|
@@ -329,19 +320,8 @@ struct sfa_msg_mod{
  *  +             .........................
  *  +-----------------------------------------------------------------
 
- */
-//
-//enum sfaerr sfa_msg_init(struct ofconn *ofconn, const struct ofp_header *sfah );
-//enum sfaerr sfa_msg_st_mod(struct ofconn *ofconn, const struct ofp_header *sfah);
-//enum sfaerr sfa_msg_at_mod(struct ofconn *ofconn, const struct ofp_header *sfah);
-
-//
-//
+*/
 
 
-
-
-
-void cnm();
 
 #endif

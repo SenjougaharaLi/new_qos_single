@@ -366,6 +366,10 @@ struct ovs_key_delete_field {
 	uint16_t len_type;
 };
 
+struct ovs_key_goto_sp {
+	uint8_t bitmap;
+};
+
 enum ovs_key_attr {
 	OVS_KEY_ATTR_UNSPEC,
 	OVS_KEY_ATTR_ENCAP,	/* Nested set of encapsulated attributes. */
@@ -400,6 +404,7 @@ enum ovs_key_attr {
 	OVS_KEY_ATTR_MODIFY_FIELD, /* tsf: modify_field action in pof */
 	OVS_KEY_ATTR_ADD_FIELD,    /* tsf: add_field action in pof */
 	OVS_KEY_ATTR_DELETE_FIELD, /* tsf: delete_field action in pof */
+	OVS_KEY_ATTR_GOTO_SP, /*pjq : goto sp in pof */
 
 #ifdef __KERNEL__
 	/* Only used within kernel data path. */

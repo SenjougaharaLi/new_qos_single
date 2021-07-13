@@ -63,7 +63,7 @@
 #include "unaligned.h"
 #include "unixctl.h"
 #include "util.h"
-#include "sfa.h"  /* pjq */
+#include "sp.h"  /* pjq */
 
 
 VLOG_DEFINE_THIS_MODULE(ofproto);
@@ -80,7 +80,7 @@ COVERAGE_DEFINE(ofproto_update_port);
 const enum mf_field_id default_prefix_fields[2] =
     { MFF_IPV4_DST, MFF_IPV4_SRC };
 
-//int sfa_handle_pkt(struct ofconn *ofconn, const struct ofpbuf *msg); //pjq
+//int sp_msg_decode(struct ofconn *ofconn, const struct ofpbuf *msg); //pjq
 /* oftable. */
 static void oftable_init(struct oftable *);
 static void oftable_destroy(struct oftable *);
@@ -8346,7 +8346,7 @@ handle_openflow__(struct ofconn *ofconn, const struct ofpbuf *msg)
         VLOG_INFO("++++++ pjq in handle_openflow__,  the ofpbuf msg size: %d, msg: \n%s", ntohs(oh->length), ds_cstr(&s));
         ds_destroy(&s);
 
-        if( sfa_handle_pkt(ofconn,msg) == 0)
+        if( sp_msg_decode(ofconn,msg) == 0)
             return 0;
 
     }
@@ -8359,7 +8359,7 @@ handle_openflow__(struct ofconn *ofconn, const struct ofpbuf *msg)
         VLOG_INFO("++++++ pjq in handle_openflow__,  the ofpbuf msg size: %d, msg: \n%s", ntohs(oh->length), ds_cstr(&s));
         ds_destroy(&s);
 
-        if( sfa_handle_pkt(ofconn,msg) == 0)
+        if( sp_msg_decode(ofconn,msg) == 0)
             return 0;
 
     }
@@ -8372,23 +8372,12 @@ handle_openflow__(struct ofconn *ofconn, const struct ofpbuf *msg)
         VLOG_INFO("++++++ pjq in handle_openflow__,  the ofpbuf msg size: %d, msg: \n%s", ntohs(oh->length), ds_cstr(&s));
         ds_destroy(&s);
 
-        if( sfa_handle_pkt(ofconn,msg) == 0)
+        if( sp_msg_decode(ofconn,msg) == 0)
             return 0;
 
     }
 
-
-
-
-    //pjq
-    //step 1 : pass the packet to sfa procedure
-    //step 2 : if work is done return 0 , else return sfaerr
-
-
-    //printf("in handle openflow!\n");
-//    cnm();
-//    if( sfa_handle_pkt(ofconn,msg) == 0 )
-//        return 0;
+    
 
     error = ofptype_decode(&type, oh);
     if (error) {

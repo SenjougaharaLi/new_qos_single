@@ -22,6 +22,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "openvswitch/types.h"
+#include "ofproto/sp.h"
 
 struct nlattr;
 struct dp_packet;

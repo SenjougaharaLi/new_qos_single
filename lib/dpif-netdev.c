@@ -1980,6 +1980,7 @@ emc_change_entry(struct emc_entry *ce, struct dp_netdev_flow *flow,
 }
 
 static inline void
+
 emc_insert(struct emc_cache *cache, const struct netdev_flow_key *key,
            struct dp_netdev_flow *flow)
 {
@@ -4157,7 +4158,7 @@ handle_packet_upcall(struct dp_netdev_pmd_thread *pmd, struct dp_packet *packet,
         match.wc.masks.vlan_tci = htons(0xffff);  //sqy notes: run here
     }
 
-    /* We can't allow the packet batching in the next loop to execute
+    /* We can't 8allow the packet batching in the next loop to execute
      * the actions.  Otherwise, if there are any slow path actions,
      * we'll send the packet up twice. */
     packet_batch_init_packet(&b, packet);
@@ -4337,7 +4338,9 @@ dp_netdev_input__(struct dp_netdev_pmd_thread *pmd,
     n_batches = 0;
     newcnt = emc_processing(pmd, packets, keys, batches, &n_batches,
                             md_is_valid, port_no);
+
     if (OVS_UNLIKELY(newcnt)) {
+        VLOG_INFO("+++++++ pjq emc loss packet: %d \n", newcnt);
         packets->count = newcnt;
         /* Get ingress port from first packet's metadata. */
         in_port = packets->packets[0]->md.in_port.odp_port;

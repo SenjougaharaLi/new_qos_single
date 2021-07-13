@@ -4257,6 +4257,10 @@ static void put_pof_set_field_key(const struct ovs_key_set_field *, struct pof_f
 static void put_pof_modify_field_key(const struct ovs_key_modify_field *, struct pof_flow *, int);
 static void put_pof_add_field_key(const struct ovs_key_add_field *, struct pof_flow *, int);
 static void put_pof_delete_field_key(const struct ovs_key_delete_field *, struct pof_flow *, int);
+static void get_pof_goto_sp_key(const struct pof_flow *flow, struct ovs_key_goto_sp *eth, int index);
+static void get_pof_goto_sp_mask(const struct pof_flow *flow, struct ovs_key_goto_sp *eth, int index);
+static void put_pof_goto_sp_key(const struct ovs_key_goto_sp *eth, struct pof_flow *flow, int index);
+
 static void get_ipv4_key(const struct flow *, struct ovs_key_ipv4 *,
                          bool is_mask);
 static void put_ipv4_key(const struct ovs_key_ipv4 *, struct flow *,
@@ -5829,6 +5833,52 @@ put_pof_delete_field_key(const struct ovs_key_delete_field *eth, struct pof_flow
 }
 
 
+/* pjq */
+static void
+commit_pof_goto_sp_action(const struct flow *flow, struct flow *base_flow,
+                                             struct ofpbuf *odp_actions,
+                                             struct flow_wildcards *wc,
+                                             bool use_masked, int index)
+{
+    struct ovs_key_goto_sp key, base, mask;
+
+    struct pof_flow * pflow = flow;
+    struct pof_flow * pbase = base_flow;
+    get_pof_goto_sp_key(pflow, &key, index);
+    get_pof_goto_sp_key(pbase, &base, index);
+    use_masked = true;
+
+    get_pof_goto_sp_mask(pflow, &mask, index);
+
+    // VLOG_INFO("+++++++++++pjq commit_pof_goto_sp_action: before pof_commit");
+    if (pof_commit(OVS_KEY_ATTR_GOTO_SP, use_masked,
+                   &key, &base, &mask, sizeof key, odp_actions, pflow->flag)) {     //pjq notes: commit return false, no run
+        VLOG_INFO("+++++++++++pjq commit_pof_goto_sp_action: after pof_commit");
+        put_pof_goto_sp_key(&base, base_flow, index);
+        put_pof_goto_sp_key(&mask, &wc->masks, index);
+    }
+}
+
+static void
+get_pof_goto_sp_key(const struct pof_flow *flow, struct ovs_key_goto_sp *eth, int index)
+{
+    eth->bitmap = flow->value[index][0];
+}
+
+static void
+get_pof_goto_sp_mask(const struct pof_flow *flow, struct ovs_key_goto_sp *eth, int index)
+{
+    eth->bitmap = flow->value[index][0];
+}
+
+static void
+put_pof_goto_sp_key(const struct ovs_key_goto_sp *eth, struct pof_flow *flow, int index)
+{
+    flow->value[index][0] = eth->bitmap;
+}
+
+
+
 static void
 commit_pof_action(const struct flow *flow, struct flow *base_flow,
 					struct ofpbuf *odp_actions,
@@ -5865,6 +5915,10 @@ commit_pof_action(const struct flow *flow, struct flow *base_flow,
 				/*VLOG_INFO("++++++tsf commit_pof_action: commit_pof_delete_field_action.");*/
 				commit_pof_delete_field_action(flow, base_flow, odp_actions, wc, use_masked, i);
 				break;
+
+		    case OFPACT_GOTO_SP:
+		        VLOG_INFO("+++++ pjq commit_pof_action: commit goto sp action");
+		        commit_pof_goto_sp_action(flow, base_flow, odp_actions, wc, use_masked, i);
 		}
 
 		i++;

@@ -1172,6 +1172,10 @@ struct ofpact_set_field *ofpact_put_reg_load2(struct ofpbuf *ofpacts,
                 ofp13_instruction_meter,          false,    \
                 "meter")                                    \
                                                             \
+    DEFINE_INST(OFPIT11_GOTO_SP,                            \
+                ofp11_instruction_goto_sp,        true,     \
+                "goto_sp")                                  \
+                                                            \
     DEFINE_INST(OFPIT11_APPLY_ACTIONS,                      \
                 ofp11_instruction_actions,        true,     \
                 "apply_actions")                            \
@@ -1188,9 +1192,6 @@ struct ofpact_set_field *ofpact_put_reg_load2(struct ofpbuf *ofpacts,
                 ofp11_instruction_write_metadata, false,    \
                 "write_metadata")                           \
                                                             \
-    DEFINE_INST(OFPIT11_GOTO_SP,                            \
-                ofp11_instruction_goto_sp,         true,   \
-                "goto_sp")                                  \
     DEFINE_INST(OFPIT11_GOTO_TABLE,                         \
                 ofp11_instruction_goto_table,     true,    \
                 "goto_table")

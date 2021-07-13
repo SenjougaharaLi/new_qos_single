@@ -4536,6 +4536,11 @@ xlate_output_action(struct xlate_ctx *ctx,
 
     ctx->nf_output_iface = NF_OUT_DROP;
 
+    VLOG_INFO("+++++ pjq xlate output action: port value: %u, OFPPP_IN_PORT: %u\n", port, OFPP_IN_PORT);
+    if(port != OFPP_IN_PORT) {
+        VLOG_INFO("++++ unnormal xlate output action");
+    }
+
     switch (port) {         //sqy notes: port = 3 go to default
     case OFPP_IN_PORT:
     	VLOG_INFO("++++++tsf xlate_output_action: OFPP_IN_PORT, inport=%"PRIu32,
@@ -4574,11 +4579,13 @@ xlate_output_action(struct xlate_ctx *ctx,
         break;
     case OFPP_LOCAL:
     default:
+        VLOG_INFO("++++++pjq xlate_output_action: default, port=%d, flow.inport=%"PRIu32,
+                  port, ctx->xin->flow.in_port.ofp_port);
         if (port != ctx->xin->flow.in_port.ofp_port) {  //sqy notes: port = 3  ctx->xin->flow.in_port.ofp_port = 1
-        	/*VLOG_INFO("++++++tsf xlate_output_action: default, port=%d, flow.inport=%"PRIu32,
-        	    			port, ctx->xin->flow.in_port.ofp_port);*/
+
         	compose_output_action(ctx, port, NULL);
         } else {
+            VLOG_INFO("+++++ pjq skipp output to input prot");
             xlate_report(ctx, "skipping output to input port");
         }
         break;
@@ -5455,7 +5462,11 @@ pof_do_xlate_actions(const struct ofpact *ofpacts, size_t ofpacts_len,
     const struct ofpact_delete_field *delete_field;
     const struct mf_field *mf;
 
+    int ofpact_index = 0;
+
     OFPACT_FOR_EACH (a, ofpacts, ofpacts_len) {
+        VLOG_INFO("+++++ pjq ofpact_index: %d \n", ofpact_index);
+        ofpact_index++;
         if (ctx->error) {//sqy notes: false
             break;
         }
@@ -5652,12 +5663,18 @@ pof_do_xlate_actions(const struct ofpact *ofpacts, size_t ofpacts_len,
             struct ofpact_goto_sp *ogs = ofpact_get_GOTO_SP(a);
 
             VLOG_INFO("++++++pjq before xlate_sp ofpact_goto_sp, type: %d, raw: %d, len: %d, bitmap: %d",
-                      ogs->ofpact.type, ogs->ofpact.raw, ntohs(ogs->ofpact.len), ogs->bitmap);
+                      ogs->ofpact.type, ogs->ofpact.raw, ogs->ofpact.len, ogs->bitmap);
+
+            flow->flag[action_num] = OFPACT_GOTO_SP;
+            flow->value[action_num][0] = ogs->bitmap;
+            action_num++;
+            VLOG_INFO("+++++ pjq action num: %d \n", action_num);
+
 
             //ovs_assert(ctx->table_id < ogt->table_id);
             //xlate_table_action(ctx, ctx->xin->flow.in_port.ofp_port,
             //                   ogt->table_id, true);
-            int should_stop = xlate_sp(ctx, ogs->bitmap, true);
+//            int should_stop = xlate_sp(ctx, ogs->bitmap, true);
 //            if(should_stop == 1) ctx->exit = true;
             break;
         }
@@ -6565,9 +6582,11 @@ xlate_actions(struct xlate_in *xin, struct xlate_out *xout)
                 OVS_NOT_REACHED();
             }
 
-            /*VLOG_INFO("++++++tsf xlate_actions ofpacts_len=%d", ofpacts_len);*/
+            VLOG_INFO("++++++tsf xlate_actions ofpacts_len=%d \n", ofpacts_len);
             mirror_ingress_packet(&ctx); //sqy notes: no mirror
+
             pof_do_xlate_actions(ofpacts, ofpacts_len, &ctx);
+            VLOG_INFO("++++++pjq after pof do xlate actions");
             if (ctx.error) {
                 goto exit;
             }

@@ -7665,6 +7665,23 @@ ofpacts_pull_openflow_instructions(struct ofpbuf *openflow,
         om = ofpact_put_METER(ofpacts);
         om->meter_id = ntohl(oim->meter_id);
     }
+
+    // pjq
+    if (insts[OVSINST_OFPIT11_GOTO_SP]) {
+        VLOG_INFO("++++++++++pjq ofpacts_pull_openflow_instructions: before OVSINST_OFPIT11_GOTO_SP");
+        const struct ofp11_instruction_goto_sp *oigs;
+        struct ofpact_goto_sp *ogs;
+        oigs = ALIGNED_CAST(const struct ofp11_instruction_goto_sp *,
+                            insts[OVSINST_OFPIT11_GOTO_SP]);
+        VLOG_INFO("+++++++pjq ofp11_instruction_goto_sp type: %d, len: %d, bitmap: %d", ntohs(oigs->type), ntohs(oigs->len), oigs->bitmap);
+        ogs = ofpact_put_GOTO_SP(ofpacts);
+        ogs->bitmap = oigs->bitmap;
+        VLOG_INFO("++++++pjq ofpact_goto_sp, type: %d, raw: %d, len: %d, bitmap: %d", ogs->ofpact.type, ogs->ofpact.raw, ntohs(ogs->ofpact.len), ogs->bitmap);
+        VLOG_INFO("++++++++pjq oigs->bitmap: %d", oigs->bitmap);
+        VLOG_INFO("+++++++pjq value of ofpact_goto_sp in enum: %d", OFPACT_GOTO_SP);
+        VLOG_INFO("+++++++pjq value of set filed in enum: %d", OFPACT_SET_FIELD);
+    }
+
     if (insts[OVSINST_OFPIT11_APPLY_ACTIONS]) {
         VLOG_INFO("+++++++++++sqy ofpacts_pull_openflow_instructions: befoore OVSINST_OFPIT11_APPLY_ACTIONS");
         const struct pof_instruction_apply_actions *piaa;
@@ -7725,21 +7742,7 @@ ofpacts_pull_openflow_instructions(struct ofpbuf *openflow,
         om->metadata = oiwm->metadata;
         om->mask = oiwm->metadata_mask;
     }
-    // pjq
-    if (insts[OVSINST_OFPIT11_GOTO_SP]) {
-        VLOG_INFO("++++++++++pjq ofpacts_pull_openflow_instructions: before OVSINST_OFPIT11_GOTO_SP");
-        const struct ofp11_instruction_goto_sp *oigs;
-        struct ofpact_goto_sp *ogs;
-        oigs = ALIGNED_CAST(const struct ofp11_instruction_goto_sp *,
-                           insts[OVSINST_OFPIT11_GOTO_SP]);
-        VLOG_INFO("+++++++pjq ofp11_instruction_goto_sp type: %d, len: %d, bitmap: %d", ntohs(oigs->type), ntohs(oigs->len), oigs->bitmap);
-        ogs = ofpact_put_GOTO_SP(ofpacts);
-        ogs->bitmap = oigs->bitmap;
-        VLOG_INFO("++++++pjq ofpact_goto_sp, type: %d, raw: %d, len: %d, bitmap: %d", ogs->ofpact.type, ogs->ofpact.raw, ntohs(ogs->ofpact.len), ogs->bitmap);
-        VLOG_INFO("++++++++pjq oigs->bitmap: %d", oigs->bitmap);
-        VLOG_INFO("+++++++pjq value of ofpact_goto_sp in enum: %d", OFPACT_GOTO_SP);
-        VLOG_INFO("+++++++pjq value of set filed in enum: %d", OFPACT_SET_FIELD);
-    }
+
     if (insts[OVSINST_OFPIT11_GOTO_TABLE]) {
         VLOG_INFO("+++++++++++sqy ofpacts_pull_openflow_instructions: befoore OVSINST_OFPIT11_GOTO_TABLE");
         const struct ofp11_instruction_goto_table *oigt;
