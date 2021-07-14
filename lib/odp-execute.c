@@ -934,7 +934,7 @@ static int execute_sp_actions(struct dp_packet *packet, struct AT_MATCH_ENTRY *a
 
 
 static void
-odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, bool may_packet_in)
+odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, bool may_packet_in, long long ingress_time)
 {
     VLOG_INFO("++++ pjq Inside function xlate_sp!\n");
     // fetch app indexes from the bitmap, and find app nodes from g_apps
@@ -1025,7 +1025,10 @@ odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, boo
         } else {
             param_right = parse_match(packet, stt_entry->param_right_match);
         }
-        if(stt_entry->param_left_match.field_id==0xfff0){
+        if(stt_entry->param_left_match.field_id==0xfff1){
+            uint32_t egress_time_sp = (uint32_t) time_wall_usec();        // current time
+            uint32_t ingress_time_sp = (uint32_t) ingress_time;
+            uint8_t diff_time_sp = ntohs(egress_time_sp - ingress_time_sp)>>8;  // for packet level
             param_left = stt_entry->param_left;
         }
         else{
@@ -1277,7 +1280,7 @@ odp_execute_masked_set_action(struct dp_packet *packet,
             break;
         case OVS_KEY_ATTR_GOTO_SP:
             VLOG_INFO("+++++++++ pjq odp_execute_masked_set_action: before OVS_KEY_ATTR_GOTO_SP");
-            odp_pof_goto_sp(packet, nl_attr_get(a), true);
+            odp_pof_goto_sp(packet, nl_attr_get(a), true,ingress_time);
     case OVS_KEY_ATTR_DELETE_FIELD:
     	/*VLOG_INFO("+++++++++++tsf odp_execute_masked_set_action: before OVS_KEY_ATTR_DELETE_FIELD");*/
     	odp_pof_delete_field(packet, nl_attr_get(a),
