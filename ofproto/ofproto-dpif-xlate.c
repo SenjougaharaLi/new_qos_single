@@ -3046,6 +3046,8 @@ compose_output_action__(struct xlate_ctx *ctx, ofp_port_t ofp_port,
                         const struct xlate_bond_recirc *xr, bool check_stp)
 {
     const struct xport *xport = get_ofp_port(ctx->xbridge, ofp_port);
+    VLOG_INFO("++++++lty    here 1 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+    VLOG_INFO("+++++ lyt xport ofp port: %d, odp port:%d ", xport->ofp_port, xport->odp_port);
     struct flow_wildcards *wc = ctx->wc;
     struct flow *flow = &ctx->xin->flow;
     struct flow_tnl flow_tnl;
@@ -3095,6 +3097,9 @@ compose_output_action__(struct xlate_ctx *ctx, ofp_port_t ofp_port,
             return;
         }
     }
+
+    VLOG_INFO("++++++lty    here 2 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+    VLOG_INFO("+++++ lyt xport ofp port: %d, odp port:%d ", xport->ofp_port, xport->odp_port);
 
     if (xport->peer) {   //*********sqy notes: xport->peer = 0x0; no run
         const struct xport *peer = xport->peer;
@@ -3279,6 +3284,9 @@ compose_output_action__(struct xlate_ctx *ctx, ofp_port_t ofp_port,
         odp_port = xport->odp_port;
         out_port = odp_port;
     }
+
+    VLOG_INFO("++++++lty    here 3 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+    VLOG_INFO("+++++ lyt xport ofp port: %d, odp port:%d ", xport->ofp_port, xport->odp_port);
 
     if (out_port != ODPP_NONE) {              //*********sqy notes: run here
         /*VLOG_INFO("+++++++++++sqy compose_output_action__: start xlate_commit_actions");*/

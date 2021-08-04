@@ -107,6 +107,8 @@ struct pkt_metadata {
     struct flow_tnl tunnel;     /* Encapsulating tunnel parameters. Note that
                                  * if 'ip_dst' == 0, the rest of the fields may
                                  * be uninitialized. */
+    uint32_t port_id ; //lty
+    uint16_t port_flag;
 };
 
 static inline void

@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <sys/time.h>
 #include "dp-packet.h"
 #include "dpif.h"
 #include "netlink.h"
@@ -35,6 +36,7 @@
 #include "util.h"
 #include "openvswitch/vlog.h"
 #include "timeval.h"
+#include "stdbool.h"
 
 void pofbf_copy_bit(const uint8_t *data_ori, uint8_t *data_res, uint16_t offset_b, uint16_t len_b); /* pjq */
 void pofbf_cover_bit(uint8_t *data_ori, const uint8_t *value, uint16_t pos_b, uint16_t len_b); /* pjq */
@@ -139,6 +141,7 @@ uint16_t ETH_TYPE_VAL_N       =      0x0008;   // network byte order
 #define PKT_PREAMBLE_SIZE             8  /* in bytes */
 #define ETHER_CRC_LEN                 4  /* in bytes */
 #define INVISIBLE_PKT_SIZE           24  /* in bytes, 12+8+4=24B */
+#define RAND_MAX                     0x7fffffff     //lty
 
 //#define FLOW_BW                       1 /* ifdef, flow bandwidth; else, fixed 50ms to calculate port bandwidth */
 
@@ -881,10 +884,9 @@ static void sp_setdstfield_action(struct dp_packet *packet, ovs_be32 dst_ip, uin
 //	xlate_output_action(ctx, 1, 0, false);
 }
 
-
 // execute SP actions
 static int execute_sp_actions(struct dp_packet *packet, struct AT_MATCH_ENTRY *at_entry)
-{
+{   int act_flag_1 ;
     VLOG_INFO("sp_actions\n");
     VLOG_INFO("act type is : %d\n", at_entry->act.actype);
     switch(at_entry->act.actype)
@@ -892,9 +894,14 @@ static int execute_sp_actions(struct dp_packet *packet, struct AT_MATCH_ENTRY *a
         case SAT_OUTPUT:
         {
             // TODO: set output port to IN_PORT for test
-            //printf("  Action type is Output, port is %ld\n", at_entry->act.acparam);
-//            xlate_output_action(ctx, at_entry->act.acparam, 0, false);
-            VLOG_INFO("  Action type is Output, however in our new design this action shouldn't exist.\n");
+            VLOG_INFO("  Action type is Output, port is %d\n", at_entry->act.acparam);
+            //xlate_output_action(ctx, at_entry->act.acparam, 0, false);
+
+            packet->md.port_id = at_entry->act.acparam;  //lty
+            packet->md.port_flag = 0xffff;
+
+            act_flag_1 = at_entry->act.acparam;
+            VLOG_INFO("+++++ lty dp_packet port id = %d",packet->md.port_id);
             break;
         }
         case SAT_DROP:
@@ -1004,8 +1011,11 @@ odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, boo
     bool event = false;
     bool event_exist = false;
     bool stt_entry_found = false;
-
+    uint32_t egress_time_sp = (uint32_t) time_wall_usec();        // current time
     struct STT_MATCH_ENTRY* stt_entry = NULL;
+
+
+
     LIST_FOR_EACH(stt_entry , node, &(stt->stt_entrys))
     {
 //        if(stt_entry->param_left_type == SFAPARAM_CONST)
@@ -1017,6 +1027,15 @@ odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, boo
 //        else
 //        {param_right = get_event_param(ctx, stt_entry->param_right_type);}
 
+
+        double x;
+        struct drand48_data randBuffer;
+
+        srand48_r(time(NULL), &randBuffer);
+
+        drand48_r(&randBuffer, &x);
+        x=x*25;
+
         VLOG_INFO("in list for stt, stt.right param: %lu, left param: %lu, cur state: %d, next state: %d", stt_entry->param_right, stt_entry->param_left, stt_entry->last_status, stt_entry->cur_status);
         VLOG_INFO("left param field id: %d, right: %d", stt_entry->param_left_match.field_id, stt_entry->param_right_match.field_id);
 //        VLOG_INFO("left param field id: %d, right: %d", ntohs(stt_entry->param_left_match.field_id), ntohs(stt_entry->param_right_match.field_id));
@@ -1026,10 +1045,18 @@ odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, boo
             param_right = parse_match(packet, stt_entry->param_right_match);
         }
         if(stt_entry->param_left_match.field_id==0xfff1){
-            uint32_t egress_time_sp = (uint32_t) time_wall_usec();        // current time
+
+            //uint64_t egress_time_sp_1 = time_wall_usec();  //current test
+
             uint32_t ingress_time_sp = (uint32_t) ingress_time;
+            //uint64_t diff_tine_test = ingress_time;
+//            srand((unsigned int )time(0));
+
             uint8_t diff_time_sp = ntohs(egress_time_sp - ingress_time_sp)>>8;  // for packet level
-            param_left = stt_entry->param_left;
+            VLOG_INFO("test_time:%d,%d",egress_time_sp-ingress_time_sp,ntohs(egress_time_sp-ingress_time_sp));
+            VLOG_INFO("+++++lty egress_time_sp=%d, ingress_time_sp=%d, diff_time_sp=%d",egress_time_sp,ingress_time_sp,diff_time_sp);
+            //VLOG_INFO("+++++lty test egress_time_sp=%ld, ingress_time_sp=%lld, diff_time_sp=%ld",egress_time_sp_1,ingress_time,diff_tine_test);
+            param_left = diff_time_sp+x;
         }
         else{
             param_left =0; //lty
@@ -1076,7 +1103,7 @@ odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, boo
     }
 
     printf("  Next_state is: %d\n", next_state);
-
+    current_state = next_state; //lty
     // fetch and parse bitmap of AT
 //    uint64_t at_match_bitmap = at->bitmap;
     char* at_match_string = parse_match_at(packet, at->at_match, current_state);
@@ -1096,7 +1123,7 @@ odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, boo
     // look up the AT with the Hash, get actions, and execute them
     struct AT_MATCH_ENTRY *at_entry;
     //VLOG_INFO("at_entry->node=%u,at_entry->last_status=%d",at_entry->node,at_entry->last_status);
-    VLOG_INFO("++++lyt in at look up , hash value: %d", hash_string(at_match_string, 0));
+    VLOG_INFO("++++lty in at look up , hash value: %d", hash_string(at_match_string, 0));
     HMAP_FOR_EACH_WITH_HASH(at_entry, node, hash_string(at_match_string, 0), &(at->at_entrys))
     {
         if(at_entry->last_status == current_state)
@@ -1452,7 +1479,8 @@ odp_execute_actions(void *dp, struct dp_packet_batch *batch, bool steal,
                     const struct nlattr *actions, size_t actions_len,
                     odp_execute_cb dp_execute_action,
                     void *bandwidth_info)
-{
+{    //lty
+    struct dp_packet packet_1;
     struct dp_packet **packets = batch->packets;
     int cnt = batch->count;
     const struct nlattr *a;
@@ -1480,7 +1508,7 @@ odp_execute_actions(void *dp, struct dp_packet_batch *batch, bool steal,
                  * not need it any more. */
                 bool may_steal = steal && last_action;
 
-                dp_execute_action(dp, batch, a, may_steal);
+                dp_execute_action(dp, batch, a, may_steal,&packet_1);
 
                 if (last_action) {
                     /* We do not need to free the packets. dp_execute_actions()
@@ -1490,6 +1518,9 @@ odp_execute_actions(void *dp, struct dp_packet_batch *batch, bool steal,
             }
             continue;
         }
+
+        bool flag = false;
+        batch->port_flag = false;
 
         switch ((enum ovs_action_attr) type) {
         case OVS_ACTION_ATTR_HASH: {
@@ -1557,6 +1588,11 @@ odp_execute_actions(void *dp, struct dp_packet_batch *batch, bool steal,
             /*VLOG_INFO("+++++++++++sqy odp_execute_actions: before odp_execute_masked_set_action");*/
             for (i = 0; i < cnt; i++) {
                 odp_execute_masked_set_action(packets[i], nl_attr_get(a), ingress_time, bd_info);
+
+                if(flag == false && packets[i]->md.port_flag == 0xffff) {
+                    batch->port_flag = true;
+                    flag = true;
+                }
             }
             break;
 

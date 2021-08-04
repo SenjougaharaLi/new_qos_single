@@ -16,7 +16,7 @@
 
 #include <config.h>
 #include "dpif-netdev.h"
-
+#include <time.h>
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -1302,7 +1302,9 @@ port_create(const char *devname, const char *type,
 
     port = xzalloc(sizeof *port);
     port->port_no = port_no;
+    //port->port_no = 4; //lty
     port->netdev = netdev;
+
     port->n_rxq = netdev_n_rxq(netdev);
     port->rxqs = xcalloc(port->n_rxq, sizeof *port->rxqs);
     port->txq_used = xcalloc(netdev_n_txq(netdev), sizeof *port->txq_used);
@@ -4319,6 +4321,7 @@ dp_netdev_input__(struct dp_netdev_pmd_thread *pmd,
 {
     int cnt = packets->count;
     VLOG_INFO("++++ pjq packet count: %d", cnt);
+
 #if !defined(__CHECKER__) && !defined(_WIN32)
     const size_t PKT_ARRAY_SIZE = cnt;
 #else
@@ -4330,6 +4333,7 @@ dp_netdev_input__(struct dp_netdev_pmd_thread *pmd,
 //    long long now = time_msec();
 //    long long now = time_usec();       // monotonic timer
     long long now = time_wall_usec();  // current time
+//    VLOG_INFO("++++ lty current time: %lld", now);
     size_t newcnt, n_batches, i;
     odp_port_t in_port;
 
@@ -4532,11 +4536,15 @@ dp_execute_userspace_action(struct dp_netdev_pmd_thread *pmd,
 
 int out_cnt = 0;
 int thresh = 500000;
-
+int act_flag = 0;
 static void
 dp_execute_cb(void *aux_, struct dp_packet_batch *packets_,
-              const struct nlattr *a, bool may_steal)
-{
+              const struct nlattr *a, bool may_steal ,struct dp_packet *packet)
+{   //struct dp_packet *packet;  //lty
+    int act_port_no= 0 ;  //lty
+    //
+    int count = packets_->count;
+    VLOG_INFO("+++++lty act_flag = %d",act_flag);
     struct dp_netdev_execute_aux *aux = aux_;
     uint32_t *depth = recirc_depth_get();
     struct dp_netdev_pmd_thread *pmd = aux->pmd;
@@ -4545,36 +4553,123 @@ dp_execute_cb(void *aux_, struct dp_packet_batch *packets_,
     long long now = aux->now;
     struct tx_port *p;
 
+//    for(int i = 0; i < count; i++) {
+//        struct dp_packet_batch *packets_tmp;
+//        packets_tmp->count = 1;
+//        packets_tmp->trunc = false;
+//        packets_tmp->packets[0] = packets_->packets[i];
+//        netdev_send(p->port->netdev, tx_qid, packets_tmp, may_steal,
+//                    dynamic_txqs);
+//    }
+
     switch ((enum ovs_action_attr)type) {
+
     case OVS_ACTION_ATTR_OUTPUT:
         VLOG_INFO("++++ pjq in output");
-        p = pmd_tx_port_cache_lookup(pmd, u32_to_odp(nl_attr_get_u32(a)));
-        if (OVS_LIKELY(p)) {
-            int tx_qid;
-            bool dynamic_txqs;
 
-            dynamic_txqs = p->port->dynamic_txqs;
-            if (dynamic_txqs) {
-                tx_qid = dpif_netdev_xps_get_tx_qid(pmd, p, now);
-            } else {
-                atomic_read_relaxed(&pmd->static_tx_qid, &tx_qid);
+            //VLOG_INFO("+++++++ lty act_port_no = %d",act_port_no);
+
+ //     p = pmd_tx_port_cache_lookup(pmd,u32_to_odp(nl_attr_get_u32(a)));
+
+        if(packets_->port_flag == false) {
+            p = pmd_tx_port_cache_lookup(pmd,u32_to_odp(nl_attr_get_u32(a)));
+
+            if (OVS_LIKELY(p)) {
+                int tx_qid;
+                bool dynamic_txqs;
+
+
+                //p->port->port_no = 4;//lty
+                dynamic_txqs = p->port->dynamic_txqs;
+
+                if (dynamic_txqs) {
+                    tx_qid = dpif_netdev_xps_get_tx_qid(pmd, p, now);
+                } else {
+                    atomic_read_relaxed(&pmd->static_tx_qid, &tx_qid);
+                }
+
+                //p->port->port_no = packet->md.port_id;  //lty
+                netdev_send(p->port->netdev, tx_qid, packets_, may_steal,
+                            dynamic_txqs);
+                VLOG_INFO("++++lty: port no = %d, tx_qid = %d",p->port->port_no,tx_qid);
+
+
+                /* used for latency measurement. */
+                /*out_cnt++;
+                if (out_cnt >= thresh) {
+                    out_cnt = 0;
+                    long long cur_time = time_wall_usec();
+                    uint16_t hop_latency = cur_time - now;
+                    VLOG_INFO("++++++tsf dp_execute_cb: output pkts, hop_latency=%d us.", hop_latency);
+                }*/
+                act_flag++;
+                return;
             }
+            break;
 
-            netdev_send(p->port->netdev, tx_qid, packets_, may_steal,
-                        dynamic_txqs);
+        } else if(packets_->port_flag == true) {
+            for(int i = 0; i < count; i++) {
+                if(packets_->packets[i]->md.port_flag == 0xffff) {
 
-            /* used for latency measurement. */
-            /*out_cnt++;
-            if (out_cnt >= thresh) {
-            	out_cnt = 0;
-            	long long cur_time = time_wall_usec();
-            	uint16_t hop_latency = cur_time - now;
-            	VLOG_INFO("++++++tsf dp_execute_cb: output pkts, hop_latency=%d us.", hop_latency);
-            }*/
+                    act_port_no = packets_->packets[0]->md.port_id;  //lty
+//                act_port_no = packet->md.port_id;  //lty
+                    VLOG_INFO("######## lty: act_port_no = %d",act_port_no);
+                    p = pmd_tx_port_cache_lookup(pmd,u32_to_odp(act_port_no));
+                } else{
+                    p = pmd_tx_port_cache_lookup(pmd,u32_to_odp(nl_attr_get_u32(a)));
+                    VLOG_INFO("##### lty in this loop flag = 0");
+                }
+                //else{
+                // p = pmd_tx_port_cache_lookup(pmd,act_flag);
+                // }
+                VLOG_INFO("++++lty  ofport: %d, odp port: %d", 1, u32_to_odp(1));
+                VLOG_INFO("++++lty  ofport: %d, odp port: %d", 3, u32_to_odp(3));
+                //     p = pmd_tx_port_cache_lookup(pmd, 3);
+                if (OVS_LIKELY(p)) {
+                    int tx_qid;
+                    bool dynamic_txqs;
 
-            return;
+
+                    //p->port->port_no = 4;//lty
+                    dynamic_txqs = p->port->dynamic_txqs;
+
+                    if (dynamic_txqs) {
+                        tx_qid = dpif_netdev_xps_get_tx_qid(pmd, p, now);
+                    } else {
+                        atomic_read_relaxed(&pmd->static_tx_qid, &tx_qid);
+                    }
+
+                    //p->port->port_no = packet->md.port_id;  //lty
+
+                    struct dp_packet_batch batch_tmp;
+                    batch_tmp.count = 1;
+                    batch_tmp.trunc = packets_->trunc;
+                    batch_tmp.packets[0] = packets_->packets[i];
+                    VLOG_INFO("++++++lty : i: %d, size of batch_tmp: %lu", i, sizeof(batch_tmp));
+
+                    netdev_send(p->port->netdev, tx_qid, &batch_tmp, may_steal,
+                                dynamic_txqs);
+                    VLOG_INFO("++++lty: port no = %d, tx_qid = %d",p->port->port_no,tx_qid);
+
+
+                    /* used for latency measurement. */
+                    /*out_cnt++;
+                    if (out_cnt >= thresh) {
+                        out_cnt = 0;
+                        long long cur_time = time_wall_usec();
+                        uint16_t hop_latency = cur_time - now;
+                        VLOG_INFO("++++++tsf dp_execute_cb: output pkts, hop_latency=%d us.", hop_latency);
+                    }*/
+                    act_flag++;
+//                    return;
+                }
+//                return;
+
+            }
+            break;
         }
-        break;
+
+
 
     case OVS_ACTION_ATTR_TUNNEL_PUSH:
         if (*depth < MAX_RECIRC_DEPTH) {
@@ -4770,10 +4865,12 @@ dp_netdev_execute_actions(struct dp_netdev_pmd_thread *pmd,
                           long long now)
 {
     struct dp_netdev_execute_aux aux = { pmd, now, flow };
+    struct dp_packet *packet;
 
     odp_execute_actions(&aux, packets, may_steal, actions,
                         actions_len, dp_execute_cb,
                         &(pmd->bd_info));
+    //VLOG_INFO("######## lty: after odp_execute_action packet port_id = %d",packet->md.port_id);
 }
 
 struct dp_netdev_ct_dump {

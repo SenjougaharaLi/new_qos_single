@@ -30,7 +30,7 @@ struct pkt_metadata;
 struct dp_packet_batch;
 
 typedef void (*odp_execute_cb)(void *dp, struct dp_packet_batch *batch,
-                               const struct nlattr *action, bool may_steal);
+                               const struct nlattr *action, bool may_steal, struct dp_packet *packet);
 
 /* Actions that need to be executed in the context of a datapath are handed
  * to 'dp_execute_action', if non-NULL.  Currently this is called only for

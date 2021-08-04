@@ -1202,7 +1202,7 @@ dpif_execute_with_help(struct dpif *dpif, struct dpif_execute *execute)
 {
     struct dpif_execute_helper_aux aux = {dpif, execute->flow, 0};
     struct dp_packet_batch pb;
-
+    //struct dp_packet *packet; lty
     COVERAGE_INC(dpif_execute_with_help);
 
     packet_batch_init_packet(&pb, execute->packet);

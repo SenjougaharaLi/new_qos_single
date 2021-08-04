@@ -709,8 +709,9 @@ netdev_set_tx_multiq(struct netdev *netdev, unsigned int n_txq)
 int
 netdev_send(struct netdev *netdev, int qid, struct dp_packet_batch *batch,
             bool may_steal, bool concurrent_txq)
-{
-//	VLOG_INFO("++++++++++tsf netdev_send, qid=%d", qid);
+{    //p->port->port_no = 4;//lty
+    //netdev->name = "dpdk2"; //lty
+	VLOG_INFO("++++++++++lty netdev_send, qid=%d,netdev_name = %s", qid,netdev->name);
     if (!netdev->netdev_class->send) {
         dp_packet_delete_batch(batch, may_steal);
         return EOPNOTSUPP;

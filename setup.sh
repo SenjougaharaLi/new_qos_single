@@ -65,7 +65,8 @@ modprobe uio_pci_generic
 #done
 
 ##  IPL211, sfp for bigtao test (high speed), ethx for ostinato test (low speed)
-./tools/dpdk-devbind.py --bind=igb_uio 0000:3c:00.2 # lty
+./tools/dpdk-devbind.py --bind=igb_uio 0000:3c:00.0 # lty
+./tools/dpdk-devbind.py --bind=igb_uio 0000:3c:00.1  # lty
 ./tools/dpdk-devbind.py --bind=igb_uio 0000:3c:00.3  # lty
 
 #./tools/dpdk-devbind.py --bind=uio_pci_generic 0000:07:00.0 # eth1
@@ -105,7 +106,7 @@ ovs-vsctl add-br br0 -- set bridge br0 datapath_type=netdev
 #ovs-vsctl set-controller br0 tcp:192.168.109.209:6666
 ovs-vsctl add-port br0 dpdk0 -- set Interface dpdk0 type=dpdk
 ovs-vsctl add-port br0 dpdk1 -- set Interface dpdk1 type=dpdk
-#ovs-vsctl add-port br0 dpdk2 -- set Interface dpdk2 type=dpdk
+ovs-vsctl add-port br0 dpdk2 -- set Interface dpdk2 type=dpdk
 #ovs-ofctl show br0
 sleep 1s
 

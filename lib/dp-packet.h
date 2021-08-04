@@ -71,6 +71,7 @@ struct dp_packet {
         struct pkt_metadata md;
         uint64_t data[DP_PACKET_CONTEXT_SIZE / 8];
     };
+
 };
 
 static inline void *dp_packet_data(const struct dp_packet *);
@@ -625,6 +626,7 @@ enum { NETDEV_MAX_BURST = 32 }; /* Maximum number packets in a batch. */
 struct dp_packet_batch {
     int count;
     bool trunc; /* true if the batch needs truncate. */
+    bool port_flag; // lty port_flag is true means packet md port_flag is 0xffff;
     struct dp_packet *packets[NETDEV_MAX_BURST];
 };
 
@@ -632,6 +634,7 @@ static inline void dp_packet_batch_init(struct dp_packet_batch *b)
 {
     b->count = 0;
     b->trunc = false;
+    b->port_flag = false;
 }
 
 static inline void

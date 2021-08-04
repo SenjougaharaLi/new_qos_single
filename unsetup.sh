@@ -18,7 +18,8 @@ sleep 1s
 cd  ~/dpdk-16.07
 
 echo "Unbind dpdk drivers and bind drivers back to original ..."
-./tools/dpdk-devbind.py --bind=i40e 0000:3c:00.2  # lty
+./tools/dpdk-devbind.py --bind=i40e 0000:3c:00.0 # lty
+./tools/dpdk-devbind.py --bind=i40e 0000:3c:00.1  # lty
 ./tools/dpdk-devbind.py --bind=i40e 0000:3c:00.3  # lty
 
 #./tools/dpdk-devbind.py --bind=igb 0000:07:00.0
