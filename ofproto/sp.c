@@ -39,7 +39,7 @@ enum sperr sp_msg_init(struct ofconn *ofconn, const struct ofp_header *sph )
 	struct sp_msg_init_st* pst =(struct sp_msg_init_st*) ( (char*)sph+sizeof( struct ofp_header));
 
 	cursor = (char*)pst+sizeof( *pst );
-    VLOG_INFO("+++++lty: cursor=%s",cursor);
+    //VLOG_INFO("+++++lty: cursor=%s",cursor);
 
 	VLOG_INFO("++++++pjq, sizeof struct CONTROLLAPP: %ld, sizeof struct ofp_header: %ld", sizeof(struct CONTROLLAPP),
               sizeof(struct ofp_header));
@@ -299,6 +299,7 @@ enum sperr sp_msg_st_mod(struct ofconn *ofconn, const struct ofp_header *sph)
             stmatch_tmp->last_status = status_tmp;
             stmatch_tmp->data = data_tmp;
             VLOG_INFO("+++++ pjq st-mod  op is add , is %s ,  status is: %d\n",data_tmp,status_tmp);
+            VLOG_INFO("+++++ lty st-mod  op is add , data_tmp is %d\n", hash_string(data_tmp,0));
             hmap_insert(&(st->st_entrys),&(stmatch_tmp->node),hash_string(data_tmp,0));
             cursor =cursor+ 3*sizeof(uint32_t)+8;
 
@@ -399,15 +400,19 @@ enum sperr sp_msg_at_mod(struct ofconn *ofconn, const struct ofp_header *sph)
 		char * data_tmp = NULL;
 		struct AT_MATCH_ENTRY* atmatch_tmp = NULL;
 		struct SP_ACTION* sact_tmp = NULL;
-
-
-
+        char * hash_test = NULL;
+        char * hash_test_1 = NULL;
+        int hash_cnt = 1;
+        int hash_update = 2;
 		for( ; i < count;i++){
             struct sp_msg_mod_at* at_tmp = NULL ;
+            //struct sp_msg_mod_at* sact_tmp = NULL ;
+            //struct SP_ACTION* sact_tmp = NULL;
             at_tmp = xmalloc(sizeof(*at_tmp));
             at_tmp = (struct sp_msg_mod_at*)(cursor) ;
-
-			VLOG_INFO("++++++pjq in st mod, i = %d", i);
+            //sact_tmp = xmalloc(sizeof(*sact_tmp));
+           // sact_tmp = (struct SP_ACTION*)(cursor) ; //lty try
+			VLOG_INFO("++++++pjq in at mod, i = %d", i);
 
 			int tmt_tmp = ntohl(at_tmp->type);
 
@@ -415,11 +420,13 @@ enum sperr sp_msg_at_mod(struct ofconn *ofconn, const struct ofp_header *sph)
 			status_tmp = 0 ;
 			len_tmp = 0;
 			data_tmp= NULL;
-
+            char I[2];
 			if( tmt_tmp == ENTRY_ADD )
 			{
+
 				len_tmp = ntohl(at_tmp->len);
-				char* data_tmp = xmalloc(len_tmp + 2);
+                VLOG_INFO("+++++lty: in add entry len_tmp = %d",len_tmp);
+                data_tmp = xmalloc(len_tmp + 2);
                 data_tmp[len_tmp+1] = '\0';
                 data_tmp[len_tmp] = '\0';
                 char* hash_data = xmalloc(len_tmp + 6);
@@ -428,48 +435,88 @@ enum sperr sp_msg_at_mod(struct ofconn *ofconn, const struct ofp_header *sph)
 //                memcpy(data_tmp ,at_tmp->value,len_tmp);
                 memcpy(data_tmp , cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t),len_tmp);
                 memcpy(hash_data , cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t),len_tmp);
+                //hash_test_1 = hash_data;
 				atmatch_tmp = xmalloc(sizeof(*atmatch_tmp));
 //				atmatch_tmp->last_status = status_tmp;
 				atmatch_tmp->last_status = ntohl(at_tmp->status);
 				atmatch_tmp->act.actype = ntohl(at_tmp->act_type);
 				atmatch_tmp->act.acparam = ntohl(at_tmp->act_param);
 				atmatch_tmp->data = data_tmp;
+                sprintf(I,"%d",atmatch_tmp->last_status);
+                VLOG_INFO("+++++lty,test is : %d", hash_string(data_tmp,0));
                 memcpy(hash_data + len_tmp, cursor+sizeof(struct SP_ACTION)+1*sizeof(uint32_t),4);
+                if (i ==0)
+                    hash_test = hash_data;
+                if(i==1&&hash_data == hash_test)
+                    VLOG_INFO("#####lty:hast TRUE");
+                else if(i==1&&hash_data != hash_test)
+                    VLOG_INFO("#####lty:hast FALSE");
+                hash_test_1 = malloc(strlen(hash_data)+1);
+                strcpy(hash_test_1, hash_data);
+                strcat(hash_test_1,I);
 
+               // VLOG_INFO("######lty: hash_test_1 's hash value = %d",  hash_string(hash_test_1,0));
                 struct ds s;
                 ds_init(&s);
                 ds_put_hex_dump(&s, hash_data, len_tmp + 4, 0, false);
-                VLOG_INFO("++++++ lty hash data tmp \n%s", ds_cstr(&s));
+               // VLOG_INFO("++++++ lty hash data tmp \n%s", ds_cstr(&s));
                 ds_destroy(&s);
 
 				VLOG_INFO("++++ pjq at-mod  op is add , new data is %s , new status is: %d, new actype : %d , new actparam : %d \n",
 						atmatch_tmp->data,atmatch_tmp->last_status,atmatch_tmp->act.actype,atmatch_tmp->act.acparam);
 //				uint64_t p[1] = {at_tmp->value};
+                VLOG_INFO("+++++lty before hmap insert,node hash value= %d", atmatch_tmp->node.hash);
+				hmap_insert(&(at->at_entrys),&(atmatch_tmp->node),hash_string(hash_test_1, 0));
 
-				hmap_insert(&(at->at_entrys),&(atmatch_tmp->node),hash_string(hash_data, 0));
-				VLOG_INFO("+++++pjq after hmap insert, hash value is : %d", hash_string(hash_data, 0));
+				VLOG_INFO("+++++pjq after hmap insert,hash_data= %s, hash value is : %d", hash_data,hash_string(hash_test_1, 0));
 			    cursor =cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t)+8;
-                VLOG_INFO("at_tmp = %s",at_tmp->value);
+                //VLOG_INFO("at_tmp = %s",at_tmp->value);
 //				at_tmp++;
-
+                hash_cnt++;
 
 			}else if( tmt_tmp == ENTRY_UPDATE)
-			{
+			{       VLOG_INFO("+++++ lty: do update");
 				//do update
+
 				sact_tmp = (struct SP_ACTION*)(cursor+sizeof(uint32_t));
+
 				status_tmp = ntohl(*(uint32_t*)( cursor+sizeof(uint32_t)+ sizeof(struct SP_ACTION)));
+                sprintf(I,"%d",status_tmp);
+                VLOG_INFO("+++++lty: in entry update status tmp = %d",status_tmp);
+                //len_tmp = ntohl(sact_tmp->len);
 				len_tmp = ntohl(*(uint32_t*)( cursor+sizeof(struct SP_ACTION)+2*sizeof(uint32_t)));
+                VLOG_INFO("+++++lty: in entry update len tmp = %d",len_tmp);
 				data_tmp = xmalloc(len_tmp+2);
 				data_tmp[len_tmp+1] = '\0';
 				data_tmp[len_tmp] = '\0';
-				memcpy(data_tmp , cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t),len_tmp);
+				char *hash_data = xmalloc(len_tmp + 6);
+                hash_data[len_tmp + 5] = '\0';
+                hash_data[len_tmp + 4] = '\0';
+				//memcpy(data_tmp , cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t),len_tmp);
+                memcpy(hash_data , cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t),len_tmp);
+//                struct ds s;
+//                ds_init(&s);
+//                ds_put_hex_dump(&s, hash_data, len_tmp + 4, 0, false);
+//                VLOG_INFO("++++++ lty hash data tmp \n%s", ds_cstr(&s));
+//                ds_destroy(&s);
+                //memcpy(hash_data + len_tmp, cursor+sizeof(struct SP_ACTION)+1*sizeof(uint32_t),4);//lty test
 				//data_tmp = cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t);
-				atmatch_tmp = (struct AT_MATCH_ENTRY* )hmap_first_with_hash(&(at->at_entrys),hash_string(data_tmp,0));
+				//atmatch_tmp = (struct AT_MATCH_ENTRY* )hmap_first_with_hash(&(at->at_entrys),hash_string(data_tmp,0));
+                hash_test_1 = malloc(strlen(hash_data)+1);
+                strcpy(hash_test_1, hash_data);
+                strcat(hash_test_1,I);
+
+                VLOG_INFO("######lty: hash_test_1 's hash value = %d",  hash_string(hash_test_1,0));
+                VLOG_INFO("+++++lty before atmatch_tmp,hash_data = %s, hash value is : %d", hash_data, hash_string(hash_data, 0));
+                atmatch_tmp = (struct AT_MATCH_ENTRY* )hmap_first_with_hash(&(at->at_entrys),hash_string(hash_test_1,0));
+
+               // VLOG_INFO("+++++lty after atmatch_tmp is assigned, node hash value= %d", atmatch_tmp->node.hash);
+                VLOG_INFO("+++++ lty before update, status = %d, acparam = %d, actype = %d",atmatch_tmp->last_status,atmatch_tmp->act.acparam,atmatch_tmp->act.actype);
 				if( atmatch_tmp == NULL)
 				{
 					VLOG_INFO(" +++ pjq BUG--CHECK can not find entry while update Action Table!\n");
-					free(data_tmp);
-					data_tmp=NULL;
+					free(hash_data);
+					hash_data=NULL;
 					cursor = cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t)+8;
 					continue;
 				}
@@ -478,17 +525,33 @@ enum sperr sp_msg_at_mod(struct ofconn *ofconn, const struct ofp_header *sph)
 				atmatch_tmp->last_status = status_tmp;
 				atmatch_tmp->act.acparam = ntohl(sact_tmp->acparam);
 				atmatch_tmp->act.actype = ntohl(sact_tmp->actype);
+                //memcpy(hash_data + len_tmp, cursor+sizeof(struct SP_ACTION)+1*sizeof(uint32_t),4);
+                //memcpy(hash_data + len_tmp, cursor+sizeof(struct SP_ACTION)+1*sizeof(uint32_t),4);
+                //hmap_insert(&(at->at_entrys),&(atmatch_tmp->node),hash_string(hash_data, 0));
 				cursor = cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t)+8;
-
+                hash_update--;
 			}else if(tmt_tmp == ENTRY_DEL){
 				//do del
 				//data_tmp = cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t);
+                status_tmp = ntohl(*(uint32_t*)( cursor+sizeof(uint32_t)+ sizeof(struct SP_ACTION)));
+                sprintf(I,"%d",status_tmp);
 				len_tmp = ntohl(*(uint32_t*)( cursor+sizeof(struct SP_ACTION)+2*sizeof(uint32_t)));
 				data_tmp = xmalloc(len_tmp+2);
 				data_tmp[len_tmp+1] = '\0';
 				data_tmp[len_tmp] = '\0';
-				memcpy(data_tmp , cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t),len_tmp);
-				atmatch_tmp = (struct AT_MATCH_ENTRY*)hmap_first_with_hash(&at->at_entrys,hash_string(data_tmp,0));
+				//memcpy(data_tmp , cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t),len_tmp);
+                char *hash_data = xmalloc(len_tmp + 6);
+                hash_data[len_tmp + 5] = '\0';
+                hash_data[len_tmp + 4] = '\0';
+                //memcpy(data_tmp , cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t),len_tmp);
+                memcpy(hash_data , cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t),len_tmp);
+                //memcpy(hash_data + len_tmp, cursor+sizeof(struct SP_ACTION)+1*sizeof(uint32_t),4);//lty test
+                //data_tmp = cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t);
+                //atmatch_tmp = (struct AT_MATCH_ENTRY* )hmap_first_with_hash(&(at->at_entrys),hash_string(data_tmp,0));
+                hash_test_1 = malloc(strlen(hash_data)+1);
+                strcpy(hash_test_1, hash_data);
+                strcat(hash_test_1,I);
+                atmatch_tmp = (struct AT_MATCH_ENTRY* )hmap_first_with_hash(&(at->at_entrys),hash_string(hash_test_1,0));
 				if( atmatch_tmp == NULL)
 				{
 					VLOG_INFO("+++ pjq BUG--CHECK can not find entry while del Action Table!\n");
@@ -499,7 +562,7 @@ enum sperr sp_msg_at_mod(struct ofconn *ofconn, const struct ofp_header *sph)
 				}
 				VLOG_INFO("++++ pjq at-mod  op is del , data is %s \n",data_tmp);
 				hmap_remove(&(at->at_entrys),&(atmatch_tmp->node));
-
+                cursor = cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t)+8;
 			}else
 			{
 				VLOG_INFO("++++ pjq BUG-CHECK! invalid at mode type!\n");

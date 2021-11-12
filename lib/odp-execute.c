@@ -93,7 +93,8 @@ static uint8_t get_set_bits_of_bytes(uint16_t byte){
 }
 
 int counter = 0;          // used to limit log rate
-
+uint8_t diff_time_sp=0;
+uint8_t last_diff_time=0;
 /* tsf: we define INT header in Byte: ETH + IP + INT (type_ttl_mapInfo_medata) + PAYLOAD. */
 #define ETH_HEADER_LEN              14
 #define ETH_TYPE_OFF                12
@@ -711,28 +712,28 @@ static char* parse_match(struct dp_packet *packet, struct sp_match_x st_match)
 //    {match=1;}
 
     int len = st_match.len / 8;
-    VLOG_INFO("++++lty len in bytes: %d", len);
+//    VLOG_INFO("++++lty len in bytes: %d", len);
 //    memset(match, 0, 8);
     pofbf_copy_bit((uint8_t *)(packet->mbuf.data_off + packet->mbuf.buf_addr),
                    match, st_match.offset, st_match.len);
 
     match[len] = '\0';
     match[len + 1] = '\0';
-    VLOG_INFO("++++++pjq in parse match, field id: %d, offset: %d, len: %d \n", st_match.field_id,
-              st_match.offset, st_match.len);
+//    VLOG_INFO("++++++pjq in parse match, field id: %d, offset: %d, len: %d \n", st_match.field_id,
+   //           st_match.offset, st_match.len);
 
-    VLOG_INFO("++++++ pjq in parse match, match: %s \n", match);
+//    VLOG_INFO("++++++ pjq in parse match, match: %s \n", match);
 
     struct ds s;
     ds_init(&s);
     ds_put_hex_dump(&s, match, st_match.len / 8, 0, false);
-    VLOG_INFO("++++++ pjq in handle_openflow__,  the ofpbuf msg size: %d, msg: \n%s", st_match.len, ds_cstr(&s));
+//    VLOG_INFO("++++++ pjq in handle_openflow__,  the ofpbuf msg size: %d, msg: \n%s", st_match.len, ds_cstr(&s));
     ds_destroy(&s);
 
     char* data = (uint8_t *)(packet->mbuf.data_off + packet->mbuf.buf_addr);
     ds_init(&s);
     ds_put_hex_dump(&s, data, 64, 0, false);
-    VLOG_INFO("++++++ packet size: %d, msg: \n%s", st_match.len, ds_cstr(&s));
+//    VLOG_INFO("++++++ packet size: %d, msg: \n%s", st_match.len, ds_cstr(&s));
     ds_destroy(&s);
 
     return match;
@@ -749,8 +750,8 @@ static char* parse_match_at(struct dp_packet *packet, struct sp_match_x st_match
 //    {match=1;}
 
     int len = st_match.len / 8;
-    VLOG_INFO("++++lty len in bytes: %d", len);
-    VLOG_INFO("+++++lty state: %d", state);
+//    VLOG_INFO("++++lty len in bytes: %d", len);
+//    VLOG_INFO("+++++lty state: %d", state);
 //    memset(match, 0, 8);
     pofbf_copy_bit((uint8_t *)(packet->mbuf.data_off + packet->mbuf.buf_addr),
                    match, st_match.offset, st_match.len);
@@ -764,21 +765,21 @@ static char* parse_match_at(struct dp_packet *packet, struct sp_match_x st_match
     match[len + 2] = (state >> 8) & 0xFF;
     match[len + 1] = (state >> 16) & 0xFF;
     match[len] = (state >> 24) & 0xFF;
-    VLOG_INFO("++++++pjq in parse match, field id: %d, offset: %d, len: %d \n", st_match.field_id,
-              st_match.offset, st_match.len);
+//    VLOG_INFO("++++++pjq in parse match, field id: %d, offset: %d, len: %d \n", st_match.field_id,
+    //          st_match.offset, st_match.len);
 
-    VLOG_INFO("++++++ pjq in parse match, match: %s \n", match);
+//    VLOG_INFO("++++++ pjq in parse match, match: %s \n", match);
 
     struct ds s;
     ds_init(&s);
     ds_put_hex_dump(&s, match, st_match.len / 8 + 4, 0, false);
-    VLOG_INFO("++++++ pjq in handle_openflow__,  the ofpbuf msg size: %d, msg: \n%s", st_match.len, ds_cstr(&s));
+//    VLOG_INFO("++++++ pjq in handle_openflow__,  the ofpbuf msg size: %d, msg: \n%s", st_match.len, ds_cstr(&s));
     ds_destroy(&s);
 
     char* data = (uint8_t *)(packet->mbuf.data_off + packet->mbuf.buf_addr);
     ds_init(&s);
     ds_put_hex_dump(&s, data, 64, 0, false);
-    VLOG_INFO("++++++ packet size: %d, msg: \n%s", st_match.len, ds_cstr(&s));
+//    VLOG_INFO("++++++ packet size: %d, msg: \n%s", st_match.len, ds_cstr(&s));
     ds_destroy(&s);
 
     return match;
@@ -876,7 +877,7 @@ static void sp_setdstfield_action(struct dp_packet *packet, ovs_be32 dst_ip, uin
     char* data = (uint8_t *)(packet->mbuf.data_off + packet->mbuf.buf_addr);
     ds_init(&s);
     ds_put_hex_dump(&s, data, 64, 0, false);
-    VLOG_INFO("++++++ packet size: %d, msg: \n%s", 64, ds_cstr(&s));
+//    VLOG_INFO("++++++ packet size: %d, msg: \n%s", 64, ds_cstr(&s));
     ds_destroy(&s);
 
     free(match);
@@ -887,21 +888,21 @@ static void sp_setdstfield_action(struct dp_packet *packet, ovs_be32 dst_ip, uin
 // execute SP actions
 static int execute_sp_actions(struct dp_packet *packet, struct AT_MATCH_ENTRY *at_entry)
 {   int act_flag_1 ;
-    VLOG_INFO("sp_actions\n");
-    VLOG_INFO("act type is : %d\n", at_entry->act.actype);
+//    VLOG_INFO("sp_actions\n");
+//    VLOG_INFO("act type is : %d\n", at_entry->act.actype);
     switch(at_entry->act.actype)
     {
         case SAT_OUTPUT:
         {
             // TODO: set output port to IN_PORT for test
-            VLOG_INFO("  Action type is Output, port is %d\n", at_entry->act.acparam);
+//            VLOG_INFO("  Action type is Output, port is %d\n", at_entry->act.acparam);
             //xlate_output_action(ctx, at_entry->act.acparam, 0, false);
 
-            packet->md.port_id = at_entry->act.acparam;  //lty
-            packet->md.port_flag = 0xffff;
+            packet->port_id = at_entry->act.acparam;  //lty
+            packet->port_flag = 0xffff;
 
             act_flag_1 = at_entry->act.acparam;
-            VLOG_INFO("+++++ lty dp_packet port id = %d",packet->md.port_id);
+//            VLOG_INFO("+++++ lty dp_packet port id = %d",packet->port_id);
             break;
         }
         case SAT_DROP:
@@ -912,11 +913,11 @@ static int execute_sp_actions(struct dp_packet *packet, struct AT_MATCH_ENTRY *a
             break;
         }
             //by zzl
-        case SAT_TOOPENFLOW:
-        {
-            //execute_controller_action(ctx, 0, OFPR_ACTION, 0);
-            break;
-        }
+       case SAT_TOOPENFLOW:
+       {
+           //execute_controller_action(ctx, 0, OFPR_ACTION, 0);
+           break;
+       }
         case ACT_SETSRCFIELD:
         {
             //printf("set source ip\n");
@@ -941,18 +942,21 @@ static int execute_sp_actions(struct dp_packet *packet, struct AT_MATCH_ENTRY *a
 
 
 static void
-odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, bool may_packet_in, long long ingress_time)
-{
-    VLOG_INFO("++++ pjq Inside function xlate_sp!\n");
+odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, bool may_packet_in, long long ingress_time, struct bandwidth_info *bd_info)
+{   //#define INVISIBLE_PKT_SIZE           24  /* in bytes, 12+8+4=24B */
+    float bandwidth_sp= 0.0;
+
+//    VLOG_INFO("++++ pjq Inside function xlate_sp!\n");
     // fetch app indexes from the bitmap, and find app nodes from g_apps
     int i = 0; //inner use
+    char I[2]; // string
     struct CONTROLLAPP* app = NULL;
     uint8_t bitmap = key->bitmap;
     bool app_found = false;
     // look up the bitmap (it represents the appid) in the appslist
     LIST_FOR_EACH(app , node, &g_apps.appslist)
     {
-        VLOG_INFO("++++ pjq appid : %d \n", app->appid);
+        //VLOG_INFO("++++ pjq appid : %d \n", app->appid);
         //Search the g_appslist with appid "i"
         if( app->appid == bitmap)
         {
@@ -976,7 +980,7 @@ odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, boo
 //    uint64_t st_match_bitmap = st -> match_bitmap;
 //    char* st_match_string = parse_match(ctx, st_match_bitmap);
     char* st_match_string = parse_match(packet, st_match);
-    VLOG_INFO("+++++ lty st_match_string=:%s", st_match_string);
+//    VLOG_INFO("+++++ lty st_match_string=:%s", st_match_string);
     if(!st_match_string)
     {
         printf("**Match field NULL!\n");
@@ -993,13 +997,13 @@ odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, boo
         st_entry_found = true;
         printf("++ST entry found!\n");
         current_state = st_entry->last_status;
-        printf("  Current_state is: %d\n", current_state);
-        VLOG_INFO("+++++ pjq data: %s", st_entry->data);
+        //printf("  Current_state is: %d\n", current_state);
+//        VLOG_INFO("+++++ pjq data: %s", st_entry->data);
         break;
     }
     if(!st_entry_found)
     {
-        printf("**ST entry not found!\n");
+       printf("**ST entry not found!\n");
         return;
     }
 
@@ -1008,6 +1012,8 @@ odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, boo
     // look up the STT with current_state and event-relavant params, and get next_state
     uint64_t param_left  = 0;
     uint64_t param_right = 0;
+    int cnt =0;
+
     bool event = false;
     bool event_exist = false;
     bool stt_entry_found = false;
@@ -1027,24 +1033,49 @@ odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, boo
 //        else
 //        {param_right = get_event_param(ctx, stt_entry->param_right_type);}
 
-
+//      lty: random calculate
         double x;
         struct drand48_data randBuffer;
 
         srand48_r(time(NULL), &randBuffer);
 
         drand48_r(&randBuffer, &x);
-        x=x*25;
+        x=x*0;
 
-        VLOG_INFO("in list for stt, stt.right param: %lu, left param: %lu, cur state: %d, next state: %d", stt_entry->param_right, stt_entry->param_left, stt_entry->last_status, stt_entry->cur_status);
-        VLOG_INFO("left param field id: %d, right: %d", stt_entry->param_left_match.field_id, stt_entry->param_right_match.field_id);
+  //      VLOG_INFO("in list for stt, stt.right param: %lu, left param: %lu, cur state: %d, next state: %d", stt_entry->param_right, stt_entry->param_left, stt_entry->last_status, stt_entry->cur_status);
+//        VLOG_INFO("left param field id: %d, right: %d", stt_entry->param_left_match.field_id, stt_entry->param_right_match.field_id);
 //        VLOG_INFO("left param field id: %d, right: %d", ntohs(stt_entry->param_left_match.field_id), ntohs(stt_entry->param_right_match.field_id));
         if(stt_entry->param_right_match.field_id == 0xfff0) {
             param_right = stt_entry->param_right;
         } else {
             param_right = parse_match(packet, stt_entry->param_right_match);
         }
-        if(stt_entry->param_left_match.field_id==0xfff1){
+        packet->flag = stt_entry->param_left_match.field_id; //lty
+        if(stt_entry->param_left_match.field_id==0xfff3){
+
+            //uint64_t egress_time_sp_1 = time_wall_usec();  //current test
+
+            uint32_t ingress_time_sp = (uint32_t) ingress_time;
+            //uint64_t diff_tine_test = ingress_time;
+//            srand((unsigned int )time(0));
+            if(cnt == 0){
+                last_diff_time = diff_time_sp;
+            }
+            printf("+++++lty last_diff_time=%d",last_diff_time);
+             diff_time_sp = ntohs(egress_time_sp - ingress_time_sp)>>8;  // for packet level
+
+            uint8_t jitter = abs(diff_time_sp-last_diff_time);
+//            VLOG_INFO("test_time:%d,%d",egress_time_sp-ingress_time_sp,ntohs(egress_time_sp-ingress_time_sp));
+           printf("+++++lty egress_time_sp=%d, ingress_time_sp=%d, diff_time_sp=%d",egress_time_sp,ingress_time_sp,diff_time_sp);
+            //VLOG_INFO("+++++lty test egress_time_sp=%ld, ingress_time_sp=%lld, diff_time_sp=%ld",egress_time_sp_1,ingress_time,diff_tine_test);
+            param_left = jitter;
+        }
+        else if(stt_entry->param_left_match.field_id==0xfff2){
+            bandwidth_sp = (bd_info->n_bytes + INVISIBLE_PKT_SIZE * bd_info->n_packets)/ (bd_info->diff_time * 1.0) * 8;  // Mbps
+            VLOG_INFO("+++++lty: n_bytes = %lu, n_packets = %lu, diff_time = %lu, bandwidth = %f",bd_info->n_bytes,bd_info->n_packets,bd_info->diff_time,bandwidth_sp);
+            param_left = bandwidth_sp*1000000+x;
+        }
+        else if(stt_entry->param_left_match.field_id==0xfff1){
 
             //uint64_t egress_time_sp_1 = time_wall_usec();  //current test
 
@@ -1053,8 +1084,8 @@ odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, boo
 //            srand((unsigned int )time(0));
 
             uint8_t diff_time_sp = ntohs(egress_time_sp - ingress_time_sp)>>8;  // for packet level
-            VLOG_INFO("test_time:%d,%d",egress_time_sp-ingress_time_sp,ntohs(egress_time_sp-ingress_time_sp));
-            VLOG_INFO("+++++lty egress_time_sp=%d, ingress_time_sp=%d, diff_time_sp=%d",egress_time_sp,ingress_time_sp,diff_time_sp);
+//            VLOG_INFO("test_time:%d,%d",egress_time_sp-ingress_time_sp,ntohs(egress_time_sp-ingress_time_sp));
+//            VLOG_INFO("+++++lty egress_time_sp=%d, ingress_time_sp=%d, diff_time_sp=%d",egress_time_sp,ingress_time_sp,diff_time_sp);
             //VLOG_INFO("+++++lty test egress_time_sp=%ld, ingress_time_sp=%lld, diff_time_sp=%ld",egress_time_sp_1,ingress_time,diff_tine_test);
             param_left = diff_time_sp+x;
         }
@@ -1067,8 +1098,8 @@ odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, boo
             for(int i = 0; i < left_len; i++) {
                 param_left += left_tmp[i] * mi;
                 mi = mi * 16;
-                VLOG_INFO("left_tmp[i]: %d, mi: %d, para left: %lu", left_tmp[i], mi, param_left);
-                VLOG_INFO("cha: %d", left_tmp[i] - '0');
+//                VLOG_INFO("left_tmp[i]: %d, mi: %d, para left: %lu", left_tmp[i], mi, param_left);
+//                VLOG_INFO("cha: %d", left_tmp[i] - '0');
         }
 
         }
@@ -1084,7 +1115,7 @@ odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, boo
         event = get_event(param_left, param_right, stt_entry->oprator);
         if(event)
         {
-            printf("  Event exists!\n");
+ //           printf("  Event exists!\n");
             event_exist = true;
             if(current_state == stt_entry->last_status)
             {
@@ -1095,10 +1126,11 @@ odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, boo
                 break;
             }
         }
+        cnt = cnt+1;
     }
     if(!stt_entry_found && event_exist)
     {
-        printf("**STT entry not found, next state is set to 0!\n");
+//        printf("**STT entry not found, next state is set to 0!\n");
 //        next_state = 0; //lty
     }
 
@@ -1107,8 +1139,8 @@ odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, boo
     // fetch and parse bitmap of AT
 //    uint64_t at_match_bitmap = at->bitmap;
     char* at_match_string = parse_match_at(packet, at->at_match, current_state);
-    VLOG_INFO("at_match_string=%s",at_match_string);  //lty
-    VLOG_INFO("at->at_match.offset=%d, len=%d, fieldid=%d",at->at_match.offset,at->at_match.len,at->at_match.field_id);  //lty
+    //VLOG_INFO("at_match_string=%s",at_match_string);  //lty
+    //VLOG_INFO("at->at_match.offset=%d, len=%d, fieldid=%d",at->at_match.offset,at->at_match.len,at->at_match.field_id);  //lty
     if(!at_match_string) //lty:at_match_string=TRUE
     {
         printf("**Match field NULL!\n");
@@ -1118,29 +1150,68 @@ odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, boo
 
 
 
-
+    sprintf(I,"%d",current_state);
     int should_drop;
     // look up the AT with the Hash, get actions, and execute them
     struct AT_MATCH_ENTRY *at_entry;
+
+    char *hash_test_0 = malloc(strlen(at_match_string)+1);
+    strcpy(hash_test_0, at_match_string);
+    strcat(hash_test_0,I);
+//    char *hash_test_1 = malloc(strlen(at_match_string)+1);
+//    strcpy(hash_test_1, at_match_string);
+//    strcat(hash_test_1,"1");
+  //  VLOG_INFO("######lty: hash_test_1 's hash value = %d",  hash_string(hash_test_0,0));
     //VLOG_INFO("at_entry->node=%u,at_entry->last_status=%d",at_entry->node,at_entry->last_status);
-    VLOG_INFO("++++lty in at look up , hash value: %d", hash_string(at_match_string, 0));
-    HMAP_FOR_EACH_WITH_HASH(at_entry, node, hash_string(at_match_string, 0), &(at->at_entrys))
-    {
-        if(at_entry->last_status == current_state)
+  //  VLOG_INFO("++++lty in at look up , hash value: %d", hash_string(at_match_string, 0));
+//    if(current_state==1){
+        HMAP_FOR_EACH_WITH_HASH(at_entry, node, hash_string(hash_test_0, 0), &(at->at_entrys))
         {
-            printf("++AT entry found!\n");
-            should_drop = execute_sp_actions(packet, at_entry);
-            break;
-        }
+            //VLOG_INFO("at_entry->last_status = %d", at_entry->last_status);
+            if(at_entry->last_status == current_state)
+            {
+                //printf("++AT entry found!\n");
+                should_drop = execute_sp_actions(packet, at_entry);
+                break;
+            }
 //        printf("++AT entry found!\n");
 //        should_drop = execute_sp_actions(packet, at_entry);
 //        break;
-    }
+        }
+//    }
+//    else if(current_state==3){
+//        HMAP_FOR_EACH_WITH_HASH(at_entry, node, hash_string(hash_test_1, 0), &(at->at_entrys))
+//        {
+//            //VLOG_INFO("at_entry->last_status = %d", at_entry->last_status);
+//            if(at_entry->last_status == current_state)
+//            {
+//                //printf("++AT entry found!\n");
+//                should_drop = execute_sp_actions(packet, at_entry);
+//                break;
+//            }
+////        printf("++AT entry found!\n");
+////        should_drop = execute_sp_actions(packet, at_entry);
+////        break;
+//        }
+//    }
+//    HMAP_FOR_EACH_WITH_HASH(at_entry, node, hash_string(at_match_string, 0), &(at->at_entrys))
+//    {
+//        //VLOG_INFO("at_entry->last_status = %d", at_entry->last_status);
+//        if(at_entry->last_status == current_state)
+//        {
+//            //printf("++AT entry found!\n");
+//            should_drop = execute_sp_actions(packet, at_entry);
+//            break;
+//        }
+////        printf("++AT entry found!\n");
+////        should_drop = execute_sp_actions(packet, at_entry);
+////        break;
+//    }
 
     // update the state
     if(next_state != 0)
     {
-        printf("  State updating...\n\n");
+        //printf("  State updating...\n\n");
         st_entry->last_status = next_state;
     }
 
@@ -1306,8 +1377,8 @@ odp_execute_masked_set_action(struct dp_packet *packet,
                               ingress_time, bd_info);
             break;
         case OVS_KEY_ATTR_GOTO_SP:
-            VLOG_INFO("+++++++++ pjq odp_execute_masked_set_action: before OVS_KEY_ATTR_GOTO_SP");
-            odp_pof_goto_sp(packet, nl_attr_get(a), true,ingress_time);
+//            VLOG_INFO("+++++++++ pjq odp_execute_masked_set_action: before OVS_KEY_ATTR_GOTO_SP");
+            odp_pof_goto_sp(packet, nl_attr_get(a), true,ingress_time, bd_info);
     case OVS_KEY_ATTR_DELETE_FIELD:
     	/*VLOG_INFO("+++++++++++tsf odp_execute_masked_set_action: before OVS_KEY_ATTR_DELETE_FIELD");*/
     	odp_pof_delete_field(packet, nl_attr_get(a),
@@ -1480,7 +1551,7 @@ odp_execute_actions(void *dp, struct dp_packet_batch *batch, bool steal,
                     odp_execute_cb dp_execute_action,
                     void *bandwidth_info)
 {    //lty
-    struct dp_packet packet_1;
+
     struct dp_packet **packets = batch->packets;
     int cnt = batch->count;
     const struct nlattr *a;
@@ -1508,7 +1579,7 @@ odp_execute_actions(void *dp, struct dp_packet_batch *batch, bool steal,
                  * not need it any more. */
                 bool may_steal = steal && last_action;
 
-                dp_execute_action(dp, batch, a, may_steal,&packet_1);
+                dp_execute_action(dp, batch, a, may_steal);
 
                 if (last_action) {
                     /* We do not need to free the packets. dp_execute_actions()
@@ -1589,7 +1660,7 @@ odp_execute_actions(void *dp, struct dp_packet_batch *batch, bool steal,
             for (i = 0; i < cnt; i++) {
                 odp_execute_masked_set_action(packets[i], nl_attr_get(a), ingress_time, bd_info);
 
-                if(flag == false && packets[i]->md.port_flag == 0xffff) {
+                if(flag == false && packets[i]->port_flag == 0xffff) {
                     batch->port_flag = true;
                     flag = true;
                 }

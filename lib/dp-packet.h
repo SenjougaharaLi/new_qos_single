@@ -67,6 +67,9 @@ struct dp_packet {
     uint16_t l4_ofs;               /* Transport-level header offset,
                                       or UINT16_MAX. */
     uint32_t cutlen;               /* length in bytes to cut from the end. */
+    uint32_t port_id ; //lty
+    uint16_t port_flag;
+    uint16_t flag;
     union {
         struct pkt_metadata md;
         uint64_t data[DP_PACKET_CONTEXT_SIZE / 8];
@@ -433,6 +436,7 @@ static inline uint32_t
 dp_packet_size(const struct dp_packet *b)
 {
     return b->mbuf.pkt_len;
+
 }
 
 static inline void

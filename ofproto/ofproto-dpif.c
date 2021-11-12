@@ -3751,7 +3751,9 @@ ofproto_dpif_set_packet_odp_port(const struct ofproto_dpif *ofproto,
     if (in_port == OFPP_NONE) {
         in_port = OFPP_LOCAL;
     }
+
     packet->md.in_port.odp_port = ofp_port_to_odp_port(ofproto, in_port);
+    VLOG_INFO("+++++++###$$$%% lty : odp_port = %d, in_port(ofp_port) = %d",packet->md.in_port.odp_port,in_port);
 }
 
 int
@@ -5873,6 +5875,7 @@ static odp_port_t
 ofp_port_to_odp_port(const struct ofproto_dpif *ofproto, ofp_port_t ofp_port)
 {
     const struct ofport_dpif *ofport = ofp_port_to_ofport(ofproto, ofp_port);
+    VLOG_INFO("########lty: ofp_port in ofp_port_to_odp_port = %d",ofp_port);
     return ofport ? ofport->odp_port : ODPP_NONE;
 }
 

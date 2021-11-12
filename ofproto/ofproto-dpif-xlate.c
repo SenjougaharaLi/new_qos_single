@@ -3045,9 +3045,20 @@ static void
 compose_output_action__(struct xlate_ctx *ctx, ofp_port_t ofp_port,
                         const struct xlate_bond_recirc *xr, bool check_stp)
 {
+    VLOG_INFO("+++++ lyt xport ofp port: %d ", ofp_port);
     const struct xport *xport = get_ofp_port(ctx->xbridge, ofp_port);
+  //  const struct xport *xport_1 = get_ofp_port(ctx->xbridge, 0);
+//    const struct xport *xport_2 = get_ofp_port(ctx->xbridge, 1);
+//    const struct xport *xport_3 = get_ofp_port(ctx->xbridge, 2);
+//    const struct xport *xport_4 = get_ofp_port(ctx->xbridge, 3);
+
+
     VLOG_INFO("++++++lty    here 1 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
     VLOG_INFO("+++++ lyt xport ofp port: %d, odp port:%d ", xport->ofp_port, xport->odp_port);
+ //   VLOG_INFO("+++++ lyt xport ofp port: %d, odp port:%d ", xport_1->ofp_port, xport_1->odp_port);
+//    VLOG_INFO("+++++ lyt xport ofp port: %d, odp port:%d ", xport_2->ofp_port, xport_2->odp_port);
+//    VLOG_INFO("+++++ lyt xport ofp port: %d, odp port:%d ", xport_3->ofp_port, xport_3->odp_port);
+//    VLOG_INFO("+++++ lyt xport ofp port: %d, odp port:%d ", xport_4->ofp_port, xport_4->odp_port);
     struct flow_wildcards *wc = ctx->wc;
     struct flow *flow = &ctx->xin->flow;
     struct flow_tnl flow_tnl;
@@ -3374,6 +3385,7 @@ static void
 compose_output_action(struct xlate_ctx *ctx, ofp_port_t ofp_port,
                       const struct xlate_bond_recirc *xr)
 {
+    VLOG_INFO("+++++++lty: enter this function compose_output_action");
     compose_output_action__(ctx, ofp_port, xr, true);
 }
 
@@ -3594,11 +3606,6 @@ static int execute_sp_actions(struct xlate_ctx *ctx, struct AT_MATCH_ENTRY *at_e
             break;
         }
             //by zzl
-        case SAT_TOOPENFLOW:
-        {
-            //execute_controller_action(ctx, 0, OFPR_ACTION, 0);
-            break;
-        }
         case ACT_SETSRCFIELD:
         {
             //printf("set source ip\n");
@@ -4165,6 +4172,7 @@ flood_packets(struct xlate_ctx *ctx, bool all)
         }
 
         if (all) {
+            VLOG_INFO("+++++++lty: enter this function flood_packets");
             compose_output_action__(ctx, xport->ofp_port, NULL, false);
         } else if (!(xport->config & OFPUTIL_PC_NO_FLOOD)) {
             compose_output_action(ctx, xport->ofp_port, NULL);
@@ -6164,6 +6172,7 @@ static bool
 actions_output_to_local_port(const struct xlate_ctx *ctx)
 {
     odp_port_t local_odp_port = ofp_port_to_odp_port(ctx->xbridge, OFPP_LOCAL);
+    VLOG_INFO("+++++++lty: local_odp_port = %d",local_odp_port);
     const struct nlattr *a;
     unsigned int left;
 

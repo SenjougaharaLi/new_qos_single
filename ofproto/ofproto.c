@@ -8331,6 +8331,7 @@ handle_openflow__(struct ofconn *ofconn, const struct ofpbuf *msg)
     OVS_EXCLUDED(ofproto_mutex)
 {
 //    VLOG_INFO("++++++ pjq in handle_openflow__");
+
     const struct ofp_header *oh = msg->data;
     enum ofptype type;
     enum ofperr error;
@@ -8339,6 +8340,8 @@ handle_openflow__(struct ofconn *ofconn, const struct ofpbuf *msg)
 
 
     if(oh->type == 50) {
+        long long cur_time_1 = time_wall_msec();
+        VLOG_INFO("+++++ lty: cur time in handle openflow is %lld", cur_time_1);
         struct ds s;
         ds_init(&s);
         ds_put_hex_dump(&s, msg->data, 96*7+32, 0, false);

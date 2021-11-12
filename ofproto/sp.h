@@ -25,7 +25,7 @@ enum sperr{
 
 /* sp msg type. */
 enum sptype{
-	OFPTYPE_SP_TABLE_CREATE = 50,	/* sp_craete_table msg type*/
+	OFPTYPE_SP_TABLE_CREATE = 50,	/* sp_create_table msg type*/
 	OFPTYPE_SP_ST_ENTRY_MOD = 51,	/* sp_st_entry_mode msg type*/
 	OFPTYPE_SP_AT_ENTRY_MOD = 52,	/* sp_at_entry_mode msg type*/
 };
@@ -48,11 +48,11 @@ enum OPRATOR
 
 struct sp_match_x {
 
-    ovs_be16 field_id;  /*0xffff means metadata,
-                          0x8XXX means from table parameter,
-                          otherwise means from packet data. */
-    ovs_be16 offset;  /*bit unit*/
-    ovs_be16 len;    /*length in bit unit*/
+    ovs_be16 field_id;  /* Used to indicate what kind of field,
+                         * it can be a constant or a data packet field or
+                         * a parameter sent by the controller */
+    ovs_be16 offset;  /* bit unit */
+    ovs_be16 len;    /* length in bit unit */
 };
 
 

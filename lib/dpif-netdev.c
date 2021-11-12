@@ -78,12 +78,37 @@
 #include "util.h"
 
 VLOG_DEFINE_THIS_MODULE(dpif_netdev);
-
+#define NG (0xFF)
 #define FLOW_DUMP_MAX_BATCH 50
 /* Use per thread recirc_depth to prevent recirculation loop. */
 #define MAX_RECIRC_DEPTH 5
 DEFINE_STATIC_PER_THREAD_DATA(uint32_t, recirc_depth, 0)
-
+typedef struct
+{
+    int voltage;
+    int power;
+}stVoltPowerTbl;
+const stVoltPowerTbl myTable[] =
+        {
+                {0,1},
+                {1,3},
+                {2,4},
+                {3,5},
+                //add your data
+        };
+int Find(const char* voltage)
+{
+    int Ret = NG;
+    int i = 0;
+    for(i=0;i<((sizeof(myTable))/(sizeof(stVoltPowerTbl)));i++)
+    {
+        if(myTable[i].voltage == voltage)
+        {
+            Ret = myTable[i].power;
+        }
+    }
+    return Ret;
+}
 /* Configuration parameters. */
 enum { MAX_FLOWS = 65536 };     /* Maximum number of flows in flow table. */
 
@@ -3927,7 +3952,9 @@ packet_batch_per_flow_update(struct packet_batch_per_flow *batch,
                              struct dp_packet *packet,
                              const struct miniflow *mf)
 {
+//    VLOG_INFO("+++++lty:before update batch->byte_count is %u",batch->byte_count);
     batch->byte_count += dp_packet_size(packet);
+//    VLOG_INFO("+++++lty:after update batch->byte_count is %u",batch->byte_count);
     batch->tcp_flags |= miniflow_get_tcp_flags(mf);
     batch->array.packets[batch->array.count++] = packet;
 }
@@ -3961,18 +3988,18 @@ packet_batch_per_flow_execute(struct packet_batch_per_flow *batch,
                               struct dp_netdev_pmd_thread *pmd,
                               long long now)
 {
-    /*VLOG_INFO("+++++++++++sqy packet_batch_per_flow_execute: 1111111111111");*/
+//    VLOG_INFO("+++++++++++sqy packet_batch_per_flow_execute: 1111111111111");
     struct dp_netdev_actions *actions;
     struct dp_netdev_flow *flow = batch->flow;
     struct bandwidth_info *bd_info = &(pmd->bd_info);
 
-    /*VLOG_INFO("+++++++++++sqy packet_batch_per_flow_execute: before dp_netdev_flow_used");*/
+//    VLOG_INFO("+++++++++++sqy packet_batch_per_flow_execute: before dp_netdev_flow_used");
     dp_netdev_flow_used(flow, batch->array.count, batch->byte_count,
                         batch->tcp_flags, now);
     actions = dp_netdev_flow_get_actions(flow);
 
     /* tsf: if fast_path invalid, flow->stats will be cleaned. */
-    /*VLOG_INFO("+++++tsf dp_netdev_flow_used: last_flow_used=%d, n_packets=%d", last_n_packets_used, flow->stats.packet_count);*/
+//  VLOG_INFO("+++++tsf dp_netdev_flow_used: last_flow_used=%d, n_packets=%d", last_n_packets_used, flow->stats.packet_count);
 //    bool comp_latch = (flow->stats.packet_count > last_n_packets_used) ? true : false;
     bool comp_latch = true;
 
@@ -3990,8 +4017,11 @@ packet_batch_per_flow_execute(struct packet_batch_per_flow *batch,
     }
 
     /* apply to count multi-flow */
+
     last_n_packets_used += batch->array.count;
+//    VLOG_INFO("+++++lty:before execute is %lld",last_n_bytes_used);
     last_n_bytes_used += batch->byte_count;
+//    VLOG_INFO("+++++lty:after execute is %lld",last_n_bytes_used);
     /* count packets that will execute add_dynamic_field (sel_int_action) */
     if (flow->sel_int_action) {
     	last_sel_int_packets += batch->array.count;
@@ -4006,9 +4036,9 @@ packet_batch_per_flow_execute(struct packet_batch_per_flow *batch,
     	bd_info->n_packets = last_n_packets_used;
     	bd_info->n_bytes = last_n_bytes_used;
     	bd_info->sel_int_packets = last_sel_int_packets;
-//        bd_info->bd = (bd_info->n_bytes + (4)*bd_info->sel_int_packets) / (bd_info->diff_time * 1.0) * 8;  // Mbps
-    	/*VLOG_INFO("++++++tsf pkt_bat_flow_exe: d_time=%d us, n_pkts=%d, n_bytes=%d, sel_pkts=%d, bd=%f",
-    			bd_info->diff_time, bd_info->n_packets, bd_info->n_bytes, bd_info->sel_int_packets, bd_info->bd);*/
+        bd_info->bd = (bd_info->n_bytes + (24)*bd_info->n_packets) / (bd_info->diff_time * 1.0) * 8;  // Mbps
+//    	VLOG_INFO("++++++tsf pkt_bat_flow_exe: d_time=%d us, n_pkts=%d, n_bytes=%d, sel_pkts=%d, bd=%f",
+   // 			bd_info->diff_time, bd_info->n_packets, bd_info->n_bytes, bd_info->sel_int_packets, bd_info->bd);
 
         /* if we want to know how long for the path, then UNCOMMENT this. */
         /*if (sec_cnt % 20 == 0) {
@@ -4104,7 +4134,7 @@ emc_processing(struct dp_netdev_pmd_thread *pmd, struct dp_packet_batch *packets
             dp_netdev_queue_batches(packet, flow, &key->mf, batches,
                                     n_batches);
         } else {
-            VLOG_INFO("+++++ pjq emc loss");
+//            VLOG_INFO("+++++ pjq emc loss");
             /* Exact match cache missed. Group missed packets together at
              * the beginning of the 'packets' array.  */
             packets[n_missed] = packet;
@@ -4268,7 +4298,7 @@ fast_path_processing(struct dp_netdev_pmd_thread *pmd,
             }
 
             miss_cnt++;
-            VLOG_INFO("++++++tsf fast_path_processing: handle_packet_upcall");
+//            VLOG_INFO("++++++tsf fast_path_processing: handle_packet_upcall");
             handle_packet_upcall(pmd, packets[i], &keys[i], &actions,
                                  &put_actions, &lost_cnt, now);
         }
@@ -4320,7 +4350,7 @@ dp_netdev_input__(struct dp_netdev_pmd_thread *pmd,
                   bool md_is_valid, odp_port_t port_no)
 {
     int cnt = packets->count;
-    VLOG_INFO("++++ pjq packet count: %d", cnt);
+    //VLOG_INFO("++++ pjq packet count: %d", cnt);
 
 #if !defined(__CHECKER__) && !defined(_WIN32)
     const size_t PKT_ARRAY_SIZE = cnt;
@@ -4348,6 +4378,7 @@ dp_netdev_input__(struct dp_netdev_pmd_thread *pmd,
         packets->count = newcnt;
         /* Get ingress port from first packet's metadata. */
         in_port = packets->packets[0]->md.in_port.odp_port;
+        VLOG_INFO("+++++++ lty in_port in dp_netdev_input__: %d \n", in_port);
         if (NULL != pmd){
         	fast_path_processing(pmd, packets, keys, batches, &n_batches, in_port, now);
         }
@@ -4544,7 +4575,7 @@ dp_execute_cb(void *aux_, struct dp_packet_batch *packets_,
     int act_port_no= 0 ;  //lty
     //
     int count = packets_->count;
-    VLOG_INFO("+++++lty act_flag = %d",act_flag);
+//    VLOG_INFO("+++++lty act_flag = %d",act_flag);
     struct dp_netdev_execute_aux *aux = aux_;
     uint32_t *depth = recirc_depth_get();
     struct dp_netdev_pmd_thread *pmd = aux->pmd;
@@ -4552,7 +4583,7 @@ dp_execute_cb(void *aux_, struct dp_packet_batch *packets_,
     int type = nl_attr_type(a);
     long long now = aux->now;
     struct tx_port *p;
-
+    int Ret = 0;
 //    for(int i = 0; i < count; i++) {
 //        struct dp_packet_batch *packets_tmp;
 //        packets_tmp->count = 1;
@@ -4565,7 +4596,7 @@ dp_execute_cb(void *aux_, struct dp_packet_batch *packets_,
     switch ((enum ovs_action_attr)type) {
 
     case OVS_ACTION_ATTR_OUTPUT:
-        VLOG_INFO("++++ pjq in output");
+//        VLOG_INFO("++++ pjq in output");
 
             //VLOG_INFO("+++++++ lty act_port_no = %d",act_port_no);
 
@@ -4591,7 +4622,7 @@ dp_execute_cb(void *aux_, struct dp_packet_batch *packets_,
                 //p->port->port_no = packet->md.port_id;  //lty
                 netdev_send(p->port->netdev, tx_qid, packets_, may_steal,
                             dynamic_txqs);
-                VLOG_INFO("++++lty: port no = %d, tx_qid = %d",p->port->port_no,tx_qid);
+//                VLOG_INFO("++++lty: port no = %d, tx_qid = %d",p->port->port_no,tx_qid);
 
 
                 /* used for latency measurement. */
@@ -4609,21 +4640,23 @@ dp_execute_cb(void *aux_, struct dp_packet_batch *packets_,
 
         } else if(packets_->port_flag == true) {
             for(int i = 0; i < count; i++) {
-                if(packets_->packets[i]->md.port_flag == 0xffff) {
+                if(packets_->packets[i]->port_flag == 0xffff) {
 
-                    act_port_no = packets_->packets[0]->md.port_id;  //lty
+                    act_port_no = packets_->packets[0]->port_id;  //lty
+                    Ret = Find(act_port_no);
 //                act_port_no = packet->md.port_id;  //lty
                     VLOG_INFO("######## lty: act_port_no = %d",act_port_no);
-                    p = pmd_tx_port_cache_lookup(pmd,u32_to_odp(act_port_no));
+
+                    p = pmd_tx_port_cache_lookup(pmd,u32_to_odp(Ret));
                 } else{
                     p = pmd_tx_port_cache_lookup(pmd,u32_to_odp(nl_attr_get_u32(a)));
-                    VLOG_INFO("##### lty in this loop flag = 0");
+//                    VLOG_INFO("##### lty in this loop flag = 0");
                 }
                 //else{
                 // p = pmd_tx_port_cache_lookup(pmd,act_flag);
                 // }
-                VLOG_INFO("++++lty  ofport: %d, odp port: %d", 1, u32_to_odp(1));
-                VLOG_INFO("++++lty  ofport: %d, odp port: %d", 3, u32_to_odp(3));
+//                VLOG_INFO("++++lty  ofport: %d, odp port: %d", 1, u32_to_odp(1));
+//                VLOG_INFO("++++lty  ofport: %d, odp port: %d", 3, u32_to_odp(3));
                 //     p = pmd_tx_port_cache_lookup(pmd, 3);
                 if (OVS_LIKELY(p)) {
                     int tx_qid;
@@ -4640,16 +4673,24 @@ dp_execute_cb(void *aux_, struct dp_packet_batch *packets_,
                     }
 
                     //p->port->port_no = packet->md.port_id;  //lty
-
+                    /* lty: Set the flag value to judge whether it is a single-packet
+                     * or multi-packet experiment to perform different operations*/
                     struct dp_packet_batch batch_tmp;
                     batch_tmp.count = 1;
                     batch_tmp.trunc = packets_->trunc;
                     batch_tmp.packets[0] = packets_->packets[i];
-                    VLOG_INFO("++++++lty : i: %d, size of batch_tmp: %lu", i, sizeof(batch_tmp));
+//                    VLOG_INFO("++++++lty : i: %d, size of batch_tmp: %lu", i, sizeof(batch_tmp));
+                    if (packets_->packets[0]->flag==0xfff2){
+                        netdev_send(p->port->netdev, tx_qid, packets_, may_steal,
+                                    dynamic_txqs);
+                    }
+                    else if(packets_->packets[0]->flag==0xfff1||packets_->packets[0]->flag==0xfff3){
+                        netdev_send(p->port->netdev, tx_qid, &batch_tmp, may_steal,dynamic_txqs);
+                    }
 
-                    netdev_send(p->port->netdev, tx_qid, &batch_tmp, may_steal,
-                                dynamic_txqs);
-                    VLOG_INFO("++++lty: port no = %d, tx_qid = %d",p->port->port_no,tx_qid);
+
+
+//                    VLOG_INFO("++++lty: port no = %d, tx_qid = %d",p->port->port_no,tx_qid);
 
 
                     /* used for latency measurement. */
@@ -4865,7 +4906,7 @@ dp_netdev_execute_actions(struct dp_netdev_pmd_thread *pmd,
                           long long now)
 {
     struct dp_netdev_execute_aux aux = { pmd, now, flow };
-    struct dp_packet *packet;
+  //  struct dp_packet *packet;
 
     odp_execute_actions(&aux, packets, may_steal, actions,
                         actions_len, dp_execute_cb,
