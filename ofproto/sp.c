@@ -483,7 +483,6 @@ enum sperr sp_msg_at_mod(struct ofconn *ofconn, const struct ofp_header *sph)
 				status_tmp = ntohl(*(uint32_t*)( cursor+sizeof(uint32_t)+ sizeof(struct SP_ACTION)));
                 sprintf(I,"%d",status_tmp);
                 VLOG_INFO("+++++lty: in entry update status tmp = %d",status_tmp);
-                //len_tmp = ntohl(sact_tmp->len);
 				len_tmp = ntohl(*(uint32_t*)( cursor+sizeof(struct SP_ACTION)+2*sizeof(uint32_t)));
                 VLOG_INFO("+++++lty: in entry update len tmp = %d",len_tmp);
 				data_tmp = xmalloc(len_tmp+2);
@@ -492,16 +491,7 @@ enum sperr sp_msg_at_mod(struct ofconn *ofconn, const struct ofp_header *sph)
 				char *hash_data = xmalloc(len_tmp + 6);
                 hash_data[len_tmp + 5] = '\0';
                 hash_data[len_tmp + 4] = '\0';
-				//memcpy(data_tmp , cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t),len_tmp);
                 memcpy(hash_data , cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t),len_tmp);
-//                struct ds s;
-//                ds_init(&s);
-//                ds_put_hex_dump(&s, hash_data, len_tmp + 4, 0, false);
-//                VLOG_INFO("++++++ lty hash data tmp \n%s", ds_cstr(&s));
-//                ds_destroy(&s);
-                //memcpy(hash_data + len_tmp, cursor+sizeof(struct SP_ACTION)+1*sizeof(uint32_t),4);//lty test
-				//data_tmp = cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t);
-				//atmatch_tmp = (struct AT_MATCH_ENTRY* )hmap_first_with_hash(&(at->at_entrys),hash_string(data_tmp,0));
                 hash_test_1 = malloc(strlen(hash_data)+1);
                 strcpy(hash_test_1, hash_data);
                 strcat(hash_test_1,I);
@@ -510,7 +500,7 @@ enum sperr sp_msg_at_mod(struct ofconn *ofconn, const struct ofp_header *sph)
                 VLOG_INFO("+++++lty before atmatch_tmp,hash_data = %s, hash value is : %d", hash_data, hash_string(hash_data, 0));
                 atmatch_tmp = (struct AT_MATCH_ENTRY* )hmap_first_with_hash(&(at->at_entrys),hash_string(hash_test_1,0));
 
-               // VLOG_INFO("+++++lty after atmatch_tmp is assigned, node hash value= %d", atmatch_tmp->node.hash);
+
                 VLOG_INFO("+++++ lty before update, status = %d, acparam = %d, actype = %d",atmatch_tmp->last_status,atmatch_tmp->act.acparam,atmatch_tmp->act.actype);
 				if( atmatch_tmp == NULL)
 				{
@@ -525,29 +515,25 @@ enum sperr sp_msg_at_mod(struct ofconn *ofconn, const struct ofp_header *sph)
 				atmatch_tmp->last_status = status_tmp;
 				atmatch_tmp->act.acparam = ntohl(sact_tmp->acparam);
 				atmatch_tmp->act.actype = ntohl(sact_tmp->actype);
-                //memcpy(hash_data + len_tmp, cursor+sizeof(struct SP_ACTION)+1*sizeof(uint32_t),4);
-                //memcpy(hash_data + len_tmp, cursor+sizeof(struct SP_ACTION)+1*sizeof(uint32_t),4);
-                //hmap_insert(&(at->at_entrys),&(atmatch_tmp->node),hash_string(hash_data, 0));
+
 				cursor = cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t)+8;
                 hash_update--;
 			}else if(tmt_tmp == ENTRY_DEL){
 				//do del
-				//data_tmp = cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t);
+
                 status_tmp = ntohl(*(uint32_t*)( cursor+sizeof(uint32_t)+ sizeof(struct SP_ACTION)));
                 sprintf(I,"%d",status_tmp);
 				len_tmp = ntohl(*(uint32_t*)( cursor+sizeof(struct SP_ACTION)+2*sizeof(uint32_t)));
 				data_tmp = xmalloc(len_tmp+2);
 				data_tmp[len_tmp+1] = '\0';
 				data_tmp[len_tmp] = '\0';
-				//memcpy(data_tmp , cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t),len_tmp);
+
                 char *hash_data = xmalloc(len_tmp + 6);
                 hash_data[len_tmp + 5] = '\0';
                 hash_data[len_tmp + 4] = '\0';
-                //memcpy(data_tmp , cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t),len_tmp);
+
                 memcpy(hash_data , cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t),len_tmp);
-                //memcpy(hash_data + len_tmp, cursor+sizeof(struct SP_ACTION)+1*sizeof(uint32_t),4);//lty test
-                //data_tmp = cursor+sizeof(struct SP_ACTION)+3*sizeof(uint32_t);
-                //atmatch_tmp = (struct AT_MATCH_ENTRY* )hmap_first_with_hash(&(at->at_entrys),hash_string(data_tmp,0));
+
                 hash_test_1 = malloc(strlen(hash_data)+1);
                 strcpy(hash_test_1, hash_data);
                 strcat(hash_test_1,I);

@@ -4598,7 +4598,7 @@ dp_execute_cb(void *aux_, struct dp_packet_batch *packets_,
     case OVS_ACTION_ATTR_OUTPUT:
 //        VLOG_INFO("++++ pjq in output");
 
-            //VLOG_INFO("+++++++ lty act_port_no = %d",act_port_no);
+          //  VLOG_INFO("+++++++ lty act_port_no = %d",act_port_no);
 
  //     p = pmd_tx_port_cache_lookup(pmd,u32_to_odp(nl_attr_get_u32(a)));
 
@@ -4645,7 +4645,7 @@ dp_execute_cb(void *aux_, struct dp_packet_batch *packets_,
                     act_port_no = packets_->packets[0]->port_id;  //lty
                     Ret = Find(act_port_no);
 //                act_port_no = packet->md.port_id;  //lty
-                    VLOG_INFO("######## lty: act_port_no = %d",act_port_no);
+                   VLOG_INFO("######## lty: act_port_no = %d",act_port_no);
 
                     p = pmd_tx_port_cache_lookup(pmd,u32_to_odp(Ret));
                 } else{
