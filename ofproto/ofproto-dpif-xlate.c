@@ -3041,6 +3041,8 @@ clear_conntrack(struct flow *flow)
     memset(&flow->ct_label, 0, sizeof flow->ct_label);
 }
 
+
+
 static void
 compose_output_action__(struct xlate_ctx *ctx, ofp_port_t ofp_port,
                         const struct xlate_bond_recirc *xr, bool check_stp)
@@ -3051,7 +3053,6 @@ compose_output_action__(struct xlate_ctx *ctx, ofp_port_t ofp_port,
 //    const struct xport *xport_2 = get_ofp_port(ctx->xbridge, 1);
 //    const struct xport *xport_3 = get_ofp_port(ctx->xbridge, 2);
 //    const struct xport *xport_4 = get_ofp_port(ctx->xbridge, 3);
-
 
     VLOG_INFO("++++++lty    here 1 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
     VLOG_INFO("+++++ lyt xport ofp port: %d, odp port:%d ", xport->ofp_port, xport->odp_port);
@@ -4554,6 +4555,7 @@ xlate_output_action(struct xlate_ctx *ctx,
 
     VLOG_INFO("+++++ pjq xlate output action: port value: %u, OFPPP_IN_PORT: %u\n", port, OFPP_IN_PORT);
     if(port != OFPP_IN_PORT) {
+
         VLOG_INFO("++++ unnormal xlate output action");
     }
 

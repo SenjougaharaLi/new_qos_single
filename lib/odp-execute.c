@@ -941,10 +941,12 @@ static int execute_sp_actions(struct dp_packet *packet, struct AT_MATCH_ENTRY *a
 }
 
 
+
 static void
 odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, bool may_packet_in, long long ingress_time, struct bandwidth_info *bd_info)
 {   //#define INVISIBLE_PKT_SIZE           24  /* in bytes, 12+8+4=24B */
     float bandwidth_sp= 0.0;
+    //FILE *fp;
 
 //    VLOG_INFO("++++ pjq Inside function xlate_sp!\n");
     // fetch app indexes from the bitmap, and find app nodes from g_apps
@@ -1020,7 +1022,7 @@ odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, boo
     uint32_t egress_time_sp = (uint32_t) time_wall_usec();        // current time
     struct STT_MATCH_ENTRY* stt_entry = NULL;
 
-
+    //fp=fopen("/home/lty/LTY_test_1.txt","w");
 
     LIST_FOR_EACH(stt_entry , node, &(stt->stt_entrys))
     {
@@ -1041,6 +1043,9 @@ odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, boo
 
         drand48_r(&randBuffer, &x);
         x=x*0;
+
+
+
 
   //      VLOG_INFO("in list for stt, stt.right param: %lu, left param: %lu, cur state: %d, next state: %d", stt_entry->param_right, stt_entry->param_left, stt_entry->last_status, stt_entry->cur_status);
 //        VLOG_INFO("left param field id: %d, right: %d", stt_entry->param_left_match.field_id, stt_entry->param_right_match.field_id);
@@ -1072,10 +1077,10 @@ odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, boo
         }
         else if(stt_entry->param_left_match.field_id==0xfff2){
             bandwidth_sp = (bd_info->n_bytes + INVISIBLE_PKT_SIZE * bd_info->n_packets)/ (bd_info->diff_time * 1.0) * 8;  // Mbps
-         //   if(cnt == 0){
-        //        VLOG_INFO("+++++lty: n_bytes = %lu, n_packets = %lu, diff_time = %lu, bandwidth = %f",bd_info->n_bytes,bd_info->n_packets,bd_info->diff_time,bandwidth_sp);
-        //    }
 
+           //     VLOG_INFO("+++++lty: n_bytes = %lu, n_packets = %lu, diff_time = %lu, bandwidth = %f",bd_info->n_bytes,bd_info->n_packets,bd_info->diff_time,bandwidth_sp);
+
+        //    fprintf(fp,"+++++lty: n_bytes = %lu, n_packets = %lu, diff_time = %lu, bandwidth = %f",bd_info->n_bytes,bd_info->n_packets,bd_info->diff_time,bandwidth_sp);
             param_left = bandwidth_sp*1000000+x;
         }
         else if(stt_entry->param_left_match.field_id==0xfff1){
@@ -1091,6 +1096,9 @@ odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, boo
 //            VLOG_INFO("+++++lty egress_time_sp=%d, ingress_time_sp=%d, diff_time_sp=%d",egress_time_sp,ingress_time_sp,diff_time_sp);
             //VLOG_INFO("+++++lty test egress_time_sp=%ld, ingress_time_sp=%lld, diff_time_sp=%ld",egress_time_sp_1,ingress_time,diff_tine_test);
             param_left = diff_time_sp+x;
+        }
+        else if(stt_entry->param_left_match.field_id==0xfff0){
+            param_left = stt_entry->param_left;
         }
         else{
             param_left =0; //lty
@@ -1113,8 +1121,9 @@ odp_pof_goto_sp(struct dp_packet *packet, const struct ovs_key_goto_sp *key, boo
 
         //printf("right param is %lld, ", stt_entry->param_right);
         //param_right = stt_entry->param_right;
-        //printf("Param left = %lld, Param right = %lld\n", param_left, param_right);
-
+        printf("Param left = %lld, Param right = %lld\n", param_left, param_right);
+     //   fprintf(fp,"Param left = %lld, Param right = %lld\n", param_left, param_right);
+      //  fclose(fp);
         event = get_event(param_left, param_right, stt_entry->oprator);
         if(event)
         {

@@ -90,8 +90,8 @@ typedef struct
 }stVoltPowerTbl;
 const stVoltPowerTbl myTable[] =
         {
-                {0,1},
-                {1,3},
+                {0,3},
+                {1,2},
                 {2,4},
                 {3,5},
                 //add your data
@@ -4374,11 +4374,11 @@ dp_netdev_input__(struct dp_netdev_pmd_thread *pmd,
                             md_is_valid, port_no);
 
     if (OVS_UNLIKELY(newcnt)) {
-        VLOG_INFO("+++++++ pjq emc loss packet: %d \n", newcnt);
+//        VLOG_INFO("+++++++ pjq emc loss packet: %d \n", newcnt);
         packets->count = newcnt;
         /* Get ingress port from first packet's metadata. */
         in_port = packets->packets[0]->md.in_port.odp_port;
-        VLOG_INFO("+++++++ lty in_port in dp_netdev_input__: %d \n", in_port);
+//        VLOG_INFO("+++++++ lty in_port in dp_netdev_input__: %d \n", in_port);
         if (NULL != pmd){
         	fast_path_processing(pmd, packets, keys, batches, &n_batches, in_port, now);
         }
@@ -4645,7 +4645,7 @@ dp_execute_cb(void *aux_, struct dp_packet_batch *packets_,
                     act_port_no = packets_->packets[0]->port_id;  //lty
                     Ret = Find(act_port_no);
 //                act_port_no = packet->md.port_id;  //lty
-                   VLOG_INFO("######## lty: act_port_no = %d",act_port_no);
+//               VLOG_INFO("######## lty: act_port_no = %d",act_port_no);
 
                     p = pmd_tx_port_cache_lookup(pmd,u32_to_odp(Ret));
                 } else{
